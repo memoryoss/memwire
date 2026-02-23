@@ -8,10 +8,12 @@ import {
   KeyRound,
   Settings,
   Zap,
+  Sparkles,
 } from "lucide-react";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/playground", label: "Playground", icon: Sparkles },
   { to: "/memory", label: "Memory", icon: Brain },
   { to: "/knowledge", label: "Knowledge", icon: BookOpen },
   { to: "/sessions", label: "Sessions", icon: MessageSquare },

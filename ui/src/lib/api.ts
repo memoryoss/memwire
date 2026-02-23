@@ -170,6 +170,10 @@ export const api = {
       if (agentId) p.set("agent_id", agentId);
       if (userId) p.set("user_id", userId);
       return request<MemoryListResponse>(`/v1/memory/list?${p}`);
+    },    retrieve: (agentId: string, userId?: string, limit = 50) => {
+      const p = new URLSearchParams({ agent_id: agentId, limit: String(limit) });
+      if (userId) p.set("user_id", userId);
+      return request<MemoryListResponse>(`/v1/memory/retrieve?${p}`);
     },    history: (agentId: string, userId: string, limit = 50) =>
       request<MemoryHistoryResponse>(
         `/v1/memory/history?agent_id=${agentId}&user_id=${userId}&limit=${limit}`

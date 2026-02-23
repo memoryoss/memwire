@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import Dashboard from "@/pages/Dashboard";
+import Playground from "@/pages/Playground";
 import Memory from "@/pages/Memory";
 import Knowledge from "@/pages/Knowledge";
 import Sessions from "@/pages/Sessions";
@@ -12,6 +13,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Layout />}>
         <Route index element={<Dashboard />} />
+        <Route path="playground" element={<Playground />} />
         <Route path="memory" element={<Memory />} />
         <Route path="knowledge" element={<Knowledge />} />
         <Route path="sessions" element={<Sessions />} />

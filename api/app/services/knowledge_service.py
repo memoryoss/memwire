@@ -13,7 +13,6 @@ import uuid
 import logging
 from typing import Optional, List, Dict, Tuple
 from collections import OrderedDict
-from io import BytesIO
 
 from agno.knowledge.knowledge import Knowledge
 from agno.vectordb.pgvector import PgVector
@@ -35,6 +34,11 @@ _knowledge_bases: OrderedDict[str, Knowledge] = OrderedDict()
 def _kb_table(agent_id: str) -> str:
     """Short KB table name — avoids PostgreSQL's 63-char identifier limit."""
     return f"kb_{agent_id.split('-')[0]}"
+
+
+def _doc_name(name: str) -> str:
+    """Truncate document name to 50 characters."""
+    return name[:50] if len(name) > 50 else name
 
 
 # ── Core KB factory ───────────────────────────────────────────────────────────
@@ -90,69 +94,68 @@ def evict_knowledge_base(agent_id: str) -> None:
 # ── Ingestion ──────────────────────────────────────────────────────────────────
 
 
-def ingest_text(
+async def ingest_text(
     agent_id: str,
     content: str,
     doc_name: str,
     chunk_size: int = 1000,
     metadata: Optional[dict] = None,
 ) -> Tuple[str, int]:
-    """Chunk and embed raw text into the agent's KB."""
-    from agno.document import Document
-    from agno.document.chunking.fixed import FixedSizeChunking
-
+    """Embed raw text into the agent's KB using Agno's async add_content API."""
     doc_id = str(uuid.uuid4())
+    name = _doc_name(doc_name)
     meta = {
         **(metadata or {}),
         "doc_id": doc_id,
-        "doc_name": doc_name,
+        "doc_name": name,
         "source_type": "text",
     }
 
-    chunker = FixedSizeChunking(chunk_size=chunk_size)
-    doc = Document(id=doc_id, name=doc_name, content=content, meta_data=meta)
-    chunks = chunker.chunk(doc)
-
     kb = get_or_create_knowledge_base(agent_id)
-    kb.load_documents(chunks, upsert=True)
+    await kb.add_content_async(
+        name=name,
+        text_content=content,
+        metadata=meta,
+        upsert=True,
+    )
 
-    _record_document(agent_id, doc_id, doc_name, "text", None, len(chunks))
-    return doc_id, len(chunks)
+    _record_document(agent_id, doc_id, name, "text", None, 0)
+    return doc_id, 0
 
 
-def ingest_url(
+async def ingest_url(
     agent_id: str,
     url: str,
     doc_name: Optional[str] = None,
     chunk_size: int = 1000,
 ) -> Tuple[str, int]:
     """Scrape a URL and embed its content into the agent's KB."""
-    import requests
-    from bs4 import BeautifulSoup
-    from agno.document import Document
-    from agno.document.chunking.fixed import FixedSizeChunking
+    from agno.knowledge.reader.website_reader import WebsiteReader
+    from agno.knowledge.chunking.recursive import RecursiveChunking
 
-    resp = requests.get(url, timeout=15)
-    resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, "html.parser")
-    text_content = soup.get_text(separator="\n", strip=True)
-
-    name = doc_name or url
+    name = _doc_name(doc_name or url)
     doc_id = str(uuid.uuid4())
-    meta = {"doc_id": doc_id, "doc_name": name, "source_type": "url", "url": url}
 
-    chunker = FixedSizeChunking(chunk_size=chunk_size)
-    doc = Document(id=doc_id, name=name, content=text_content, meta_data=meta)
-    chunks = chunker.chunk(doc)
+    reader = WebsiteReader(
+        max_depth=1,
+        max_links=1,
+        chunking_strategy=RecursiveChunking(chunk_size=chunk_size, overlap=100),
+    )
 
     kb = get_or_create_knowledge_base(agent_id)
-    kb.load_documents(chunks, upsert=True)
+    await kb.add_content_async(
+        url=url,
+        name=name,
+        reader=reader,
+        metadata={"doc_id": doc_id, "doc_name": name, "source_type": "url"},
+        upsert=True,
+    )
 
-    _record_document(agent_id, doc_id, name, "url", url, len(chunks))
-    return doc_id, len(chunks)
+    _record_document(agent_id, doc_id, name, "url", url, 0)
+    return doc_id, 0
 
 
-def ingest_file(
+async def ingest_file(
     agent_id: str,
     file_bytes: bytes,
     filename: str,
@@ -160,49 +163,73 @@ def ingest_file(
     chunk_size: int = 1000,
 ) -> Tuple[str, int]:
     """Parse and embed a file (PDF, TXT, MD, CSV, JSON) into the agent's KB."""
-    from agno.document.chunking.fixed import FixedSizeChunking
-    from agno.document import Document
+    import tempfile
+    import os
+    from agno.knowledge.chunking.recursive import RecursiveChunking
 
-    doc_id = str(uuid.uuid4())
     ext = filename.rsplit(".", 1)[-1].lower()
+    doc_id = str(uuid.uuid4())
+    filename = _doc_name(filename)
 
-    if ext == "pdf":
-        from pypdf import PdfReader
-
-        reader = PdfReader(BytesIO(file_bytes))
-        text_content = "\n".join(page.extract_text() or "" for page in reader.pages)
-    elif ext in ("txt", "md"):
-        text_content = file_bytes.decode("utf-8", errors="ignore")
-    elif ext == "json":
-        import json as _json
-
-        data = _json.loads(file_bytes)
-        text_content = _json.dumps(data, indent=2)
-    elif ext == "csv":
-        import csv, io
-
-        reader = csv.DictReader(
-            io.StringIO(file_bytes.decode("utf-8", errors="ignore"))
-        )
-        text_content = "\n".join(str(row) for row in reader)
-    else:
-        text_content = file_bytes.decode("utf-8", errors="ignore")
-
-    meta = {
-        "doc_id": doc_id,
-        "doc_name": filename,
-        "source_type": "file",
-        "filename": filename,
+    READER_MAP = {
+        "pdf": "agno.knowledge.reader.pdf_reader.PDFReader",
+        "txt": "agno.knowledge.reader.text_reader.TextReader",
+        "md": "agno.knowledge.reader.markdown_reader.MarkdownReader",
+        "json": "agno.knowledge.reader.json_reader.JSONReader",
+        "csv": "agno.knowledge.reader.csv_reader.CSVReader",
     }
-    chunker = FixedSizeChunking(chunk_size=chunk_size)
-    doc = Document(id=doc_id, name=filename, content=text_content, meta_data=meta)
-    chunks = chunker.chunk(doc)
 
-    kb = get_or_create_knowledge_base(agent_id)
-    kb.load_documents(chunks, upsert=True)
+    chunking = RecursiveChunking(chunk_size=chunk_size, overlap=100)
 
-    _record_document(agent_id, doc_id, filename, "file", filename, len(chunks))
-    return doc_id, len(chunks)
+    # Write to a temp file so Agno readers can process it
+    suffix = f".{ext}"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(file_bytes)
+        tmp_path = tmp.name
+
+    try:
+        kb = get_or_create_knowledge_base(agent_id)
+
+        if ext in READER_MAP:
+            module_path, class_name = READER_MAP[ext].rsplit(".", 1)
+            import importlib
+
+            reader_cls = getattr(importlib.import_module(module_path), class_name)
+            reader = reader_cls(
+                chunk=True, chunk_size=chunk_size, chunking_strategy=chunking
+            )
+            await kb.add_content_async(
+                path=tmp_path,
+                name=filename,
+                reader=reader,
+                metadata={
+                    "doc_id": doc_id,
+                    "doc_name": filename,
+                    "source_type": "file",
+                },
+                upsert=True,
+            )
+        else:
+            # Fallback: read as plain text
+            text_content = file_bytes.decode("utf-8", errors="ignore")
+            await kb.add_content_async(
+                name=filename,
+                text_content=text_content,
+                metadata={
+                    "doc_id": doc_id,
+                    "doc_name": filename,
+                    "source_type": "file",
+                },
+                upsert=True,
+            )
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+
+    _record_document(agent_id, doc_id, filename, "file", filename, 0)
+    return doc_id, 0
 
 
 # ── Search ────────────────────────────────────────────────────────────────────

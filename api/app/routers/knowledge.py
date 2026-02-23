@@ -36,7 +36,7 @@ async def upload_text(
     _: dict = Depends(require_api_key),
 ):
     """Ingest raw text into an agent's knowledge base."""
-    doc_id, chunks = ingest_text(
+    doc_id, chunks = await ingest_text(
         agent_id=req.agent_id,
         content=req.content,
         doc_name=req.doc_name or f"text-{doc_id_preview()}",
@@ -58,7 +58,7 @@ async def upload_url(
 ):
     """Scrape a URL and ingest its content into the knowledge base."""
     try:
-        doc_id, chunks = ingest_url(
+        doc_id, chunks = await ingest_url(
             agent_id=req.agent_id,
             url=req.url,
             doc_name=req.doc_name,
@@ -89,7 +89,7 @@ async def upload_file(
             detail=f"Unsupported file type '.{ext}'. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
         )
     content = await file.read()
-    doc_id, chunks = ingest_file(
+    doc_id, chunks = await ingest_file(
         agent_id=agent_id,
         file_bytes=content,
         filename=file.filename,
