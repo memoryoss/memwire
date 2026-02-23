@@ -1,0 +1,93 @@
+# ── Python ────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+build/
+.eggs/
+.venv/
+venv/
+env/
+.Python
+*.so
+
+# ── Logs ──────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Environment / Secrets ─────────────────────────────────────
+# Ignore all .env files; keep only named presets and samples
+.env
+.env.local
+.env.*.local
+api/.env
+api/.env.local
+docker/infra.env
+# Allow committed presets (no real secrets)
+!api/.env.ollama
+!api/sample.env
+
+# ── Node / Frontend ───────────────────────────────────────────
+node_modules/
+.npm/
+
+# Build outputs
+dist/
+build/
+out/
+.next/
+.nuxt/
+.output/
+*.local
+
+# Bun
+.bun/
+
+# ── Docker ────────────────────────────────────────────────────
+.dockerignore
+
+# Docker volumes / local data (if mounted)
+docker/data/
+docker/postgres-data/
+
+# ── Testing ───────────────────────────────────────────────────
+.pytest_cache/
+.tox/
+coverage/
+htmlcov/
+.coverage
+.coverage.*
+junit*.xml
+
+# ── OS ────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# ── IDE ───────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*.bak
+*.orig
+*.rej
+
+# ── Security ──────────────────────────────────────────────────
+*.pem
+*.key
+*.p12
+*.pfx
+
+# ── Alembic ───────────────────────────────────────────────────
+# Migration scripts are committed; ignore compiled/cache artifacts only
+api/migrations/versions/__pycache__/
+api/migrations/__pycache__/
