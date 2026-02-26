@@ -1,6 +1,6 @@
 # MemWire
 
-> Self-hosted memory infrastructure for AI agents. Bring your own LLM, your own database — deploy persistent memory to any cloud.
+> Enterprise-grade, self-hosted memory infrastructure for AI agents. Deploy persistent AI memory on-premise or in any cloud with your own LLM and database.
 
 ---
 
