@@ -33,6 +33,19 @@ docker/infra.env
 node_modules/
 .npm/
 
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+qdrant_data_*/
+chat_qdrant/
+*.db
+benchmark/results/*.json
+benchmark/data/*.json
+archives/
+.venv/
+
 # Build outputs
 dist/
 build/

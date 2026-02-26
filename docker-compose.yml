@@ -1,0 +1,28 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    restart: unless-stopped
+
+  memwire:
+    container_name: memwire
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      - qdrant
+    env_file:
+      - .env
+    environment:
+      - QDRANT_URL=http://qdrant:6333
+    volumes:
+      - memwire_data:/data
+    restart: unless-stopped
+
+volumes:
+  qdrant_storage:
+  memwire_data:

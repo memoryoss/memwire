@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memwire"
+version = "0.2.0"
+description = "Enterprise-grade memory infrastructure for AI agents"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24.0",
+    "qdrant-client[fastembed]>=1.12.0",
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.12.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["memwire*"]
+
+[project.optional-dependencies]
+chat = [
+    "openai>=1.0.0",
+    "python-dotenv>=1.0.0",
+    "fastapi>=0.100.0",
+    "python-multipart>=0.0.6",
+    "uvicorn>=0.23.0",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+]
