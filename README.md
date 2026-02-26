@@ -41,23 +41,10 @@ No API key needed — MemWire runs fully locally with Ollama. Models are pulled 
 
 ### Manual Setup
 
-#### 1. Install dependencies
-
 ```bash
 pip install -r requirements.txt
-```
-
-#### 2. Set up environment
-
-```bash
-cp .env.example .env
-```
-
-`.env` file (needed for chat apps only):
-
-```
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4o        # optional, defaults to gpt-4
+cp .env.example .env       # add your OpenAI API key
+docker compose up -d       # starts Qdrant + MemWire web UI
 ```
 
 ---
