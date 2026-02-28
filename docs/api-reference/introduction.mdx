@@ -1,33 +1,91 @@
 ---
-title: 'Introduction'
-description: 'Example section for showcasing API endpoints'
+title: 'API reference'
+description: 'REST API for storing, recalling, and searching memories'
 ---
 
-<Note>
-  If you're not looking to build API reference documentation, you can delete
-  this section by removing the api-reference folder.
-</Note>
+Start the MemWire server:
 
-## Welcome
+```bash
+docker compose up -d   # starts Qdrant + MemWire API on :8000
+```
 
-There are two ways to build API documentation: [OpenAPI](https://mintlify.com/docs/api-playground/openapi/setup) and [MDX components](https://mintlify.com/docs/api-playground/mdx/configuration). For the starter kit, we are using the following OpenAPI specification.
+Base URL: `http://localhost:8000`
 
-<Card
-  title="Plant Store Endpoints"
-  icon="leaf"
-  href="https://github.com/mintlify/starter/blob/main/api-reference/openapi.json"
->
-  View the OpenAPI specification file
-</Card>
+---
 
-## Authentication
+## Store memory
 
-All API endpoints are authenticated using Bearer tokens and picked up from the specification file.
+`POST /v1/memory`
+
+```bash
+curl -X POST http://localhost:8000/v1/memory \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "alice",
+    "agent_id": "support-bot",
+    "messages": [
+      { "role": "user", "content": "I prefer dark mode and short answers." }
+    ]
+  }'
+```
 
 ```json
-"security": [
-  {
-    "bearerAuth": []
-  }
-]
+{
+  "stored": 1,
+  "memory_ids": ["mem_3f7a1c2d9e4b"]
+}
+```
+
+---
+
+## Recall context
+
+`POST /v1/memory/recall`
+
+```bash
+curl -X POST http://localhost:8000/v1/memory/recall \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "alice",
+    "agent_id": "support-bot",
+    "query": "How should I format my answers?",
+    "top_k": 5
+  }'
+```
+
+```json
+{
+  "context": "alice prefers dark mode and short answers.",
+  "paths": 2,
+  "knowledge": []
+}
+```
+
+---
+
+## Search memories
+
+`POST /v1/memory/search`
+
+```bash
+curl -X POST http://localhost:8000/v1/memory/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "alice",
+    "query": "dark mode",
+    "top_k": 10
+  }'
+```
+
+```json
+{
+  "results": [
+    {
+      "memory_id": "mem_3f7a1c2d9e4b",
+      "content": "I prefer dark mode and short answers.",
+      "category": "preference",
+      "score": 0.94
+    }
+  ]
+}
 ```

@@ -1,0 +1,37 @@
+---
+title: 'Store memory'
+description: "Add messages to a user's memory graph"
+---
+
+`POST /v1/memory`
+
+### Request body
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `user_id` | string | ✅ | User to store memory for |
+| `agent_id` | string | | Namespace memories per agent |
+| `messages` | array | ✅ | List of `{role, content}` message objects |
+
+### Example
+
+```bash
+curl -X POST http://localhost:8000/v1/memory \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "alice",
+    "agent_id": "support-bot",
+    "messages": [
+      { "role": "user", "content": "I prefer dark mode and short answers." }
+    ]
+  }'
+```
+
+### Response
+
+```json
+{
+  "stored": 1,
+  "memory_ids": ["mem_3f7a1c2d9e4b"]
+}
+```

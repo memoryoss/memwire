@@ -2,6 +2,9 @@
 # .git, .github, .claude, .agents, .idea, node_modules,
 # README.md, LICENSE.md, CHANGELOG.md, CONTRIBUTING.md
 
+# Not part of the docs site
+AGENTS.md
+
 # Draft content
 drafts/
 *.draft.mdx

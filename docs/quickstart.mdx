@@ -1,80 +1,99 @@
 ---
 title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+description: "Add persistent memory to your AI agent in minutes"
 ---
 
-## Get started in three steps
+## Install
 
-Get your documentation site running locally and make your first customization.
+```bash
+pip install memwire          # SDK only
+pip install "memwire[chat]"  # SDK + chat demos (OpenAI, FastAPI, uvicorn)
+```
 
-### Step 1: Set up your local environment
+---
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+## Embedded mode
 
-### Step 2: Deploy your changes
+Data is stored on disk in `./memwire_data/`.
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+```python
+from memwire import MemWire, MemWireConfig
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+config = MemWireConfig(
+    qdrant_path="./memwire_data",          # local vector store
+    database_url="sqlite:///memory.db",    # metadata ledger
+    qdrant_collection_prefix="app_",
+)
+memory = MemWire(user_id="alice", config=config)
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+# Add messages to memory
+memory.add([
+    {"role": "user", "content": "I prefer dark mode and short answers."}
+])
 
-### Step 3: Go live
+# Recall relevant context for a query
+result = memory.recall("How should I format my answers?")
+if result.formatted:
+    print(result.formatted)
+    # → "alice prefers dark mode and short answers."
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+# Inject recalled context into your LLM prompt
+messages = [
+    {"role": "system", "content": "You are a helpful assistant."},
+]
+if result.formatted:
+    messages.append({"role": "system", "content": f"Memory context:\n{result.formatted}"})
+messages.append({"role": "user", "content": "How should I format my answers?"})
+
+# After you get the LLM response, reinforce the memory paths that were used
+memory.feedback(response="<assistant response here>")
+
+# Search memories by keyword / semantic similarity
+hits = memory.search("dark mode", top_k=5)
+for record, score in hits:
+    print(f"[{score:.2f}] ({record.category}) {record.content}")
+
+# Inspect stats
+stats = memory.get_stats()
+print(stats)  # {"memories": 1, "nodes": ..., "edges": ..., "knowledge_bases": 0}
+
+# Always close to flush background writes
+memory.close()
+```
+
+---
+
+## With a local Qdrant server
+
+```bash
+docker run -p 6333:6333 qdrant/qdrant
+```
+
+```python
+config = MemWireConfig(
+    qdrant_url="http://localhost:6333",
+    database_url="sqlite:///memory.db",
+    qdrant_collection_prefix="app_",
+)
+memory = MemWire(user_id="alice", config=config)
+```
+
+---
+
+## Multi-agent isolation
+
+Pass `agent_id` to namespace memories per agent within the same user account.
+
+```python
+memory = MemWire(user_id="alice", agent_id="support-bot", config=config)
+```
+
+---
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+<CardGroup cols={1}>
+  <Card title="API reference" icon="terminal" href="/api-reference/introduction">
+    Explore the REST endpoints for store, recall, and search.
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

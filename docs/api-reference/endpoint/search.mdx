@@ -1,0 +1,43 @@
+---
+title: 'Search memories'
+description: 'Semantic search over stored memories'
+---
+
+`POST /v1/memory/search`
+
+### Request body
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `user_id` | string | ✅ | User to search memories for |
+| `query` | string | ✅ | Search query |
+| `top_k` | integer | | Number of results to return (default: `10`) |
+
+### Example
+
+```bash
+curl -X POST http://localhost:8000/v1/memory/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "alice",
+    "query": "dark mode",
+    "top_k": 10
+  }'
+```
+
+### Response
+
+```json
+{
+  "results": [
+    {
+      "memory_id": "mem_3f7a1c2d9e4b",
+      "content": "I prefer dark mode and short answers.",
+      "category": "preference",
+      "score": 0.94
+    }
+  ]
+}
+```
+---
+---
