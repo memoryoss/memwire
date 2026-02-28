@@ -1,326 +1,236 @@
 # MemWire
 
-> Enterprise-grade, self-hosted memory infrastructure for AI agents. Deploy persistent AI memory on-premise or in any cloud with your own LLM and database.
+> Enterprise-grade, self-hosted AI memory infrastructure layer. Deploy persistent AI memory on-premise or in any cloud with your own LLM and database.
 
-**v0.2.0** | 97/97 tests passing | 77.9% accuracy on LOCOMO benchmark (#1)
+![Self-Hosted](https://img.shields.io/badge/Self--Hosted-Yes-blue)
+![Customizable](https://img.shields.io/badge/Customizable-Fully-green)
+![Model-Agnostic](https://img.shields.io/badge/Model--Agnostic-Any%20LLM-orange)
+![License](https://img.shields.io/badge/License-Apache%202.0-blue)
+
+## What is MemWire?
+
+MemWire is **an open source & enterprise-ready** AI memory infrastructure layer. MemWire gives your AI applications persistent, auditable memory with structured, updatable facts, **fastest** semantic retrieval across conversations and knowledge, integrated any document ingestion, and controlled LLM context assembly.
+
+- Fully customizable — adapt schemas, memory types, and pipelines to your use case
+- Self-hosted — run entirely on your local machine, on-premise or in your own cloud
+- Multi-tenant — isolate applications, users, and workspaces securely
+- Bring your own database — PostgreSQL, pgvector, Qdrant, Pinecone or your preferred stack
+- Bring your own LLM — OpenAI, Anthropic, Gemini, Ollama, or any provider
+- Deploy anywhere — edge, private cloud, public cloud, air-gapped environments
 
 ---
 
-## Features
+## Quickstart
 
-- **Displacement graph** — conversation turns become graph nodes linked by embedding displacement, not keyword matching
-- **Path-based recall** — BFS traversal finds relevant memory paths with tension detection
-- **Hybrid search** — dense (MiniLM-L6-v2) + sparse (SPLADE) embeddings with optional reranking
-- **Knowledge base** — chunk and search .txt files alongside conversational memory
-- **Multi-tenant** — `user_id` + optional `agent_id` isolation
-- **Zero-LLM overhead** — classification via anchor centroids, no API calls for memory operations
+### Python SDK
 
----
-
-## Quick Start
-
-### Docker (recommended)
-
-One command starts all services — API, dashboard, database, and optional local LLM:
+#### Install
 
 ```bash
-git clone https://github.com/memoryoss/memwire
-cd memwire
-./memwire.sh start
-```
-
-On first run, `memwire.sh` copies `api/sample.env` → `api/.env` and prompts for your LLM provider.
-
-No API key needed — MemWire runs fully locally with Ollama. Models are pulled automatically on first start.
-
-| Service | URL |
-|---|---|
-| Dashboard | http://localhost:3000 |
-| API | http://localhost:8000 |
-| API Docs | http://localhost:8000/docs |
-
-### Manual Setup
-
-```bash
-pip install -r requirements.txt
-cp .env.example .env       # add your OpenAI API key
-docker compose up -d       # starts Qdrant + MemWire web UI
+pip install memwire
 ```
 
 ---
 
-## Using the API
+#### Embedded mode
 
-All requests require an `Authorization: Bearer <api_key>` header. The bootstrap key (`memwire-bootstrap`) is available on first run — create a permanent key in the dashboard **Settings → API Keys**.
-
-### Store a memory
-
-```bash
-curl -X POST http://localhost:8000/v1/memory/store \
-  -H "Authorization: Bearer memwire-bootstrap" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "agent_id": "my-agent",
-    "user_id":  "user-123",
-    "user_message":      "I prefer concise answers and I work in Python.",
-    "assistant_message": "Got it, I will keep that in mind."
-  }'
-```
-
-```json
-{ "success": true, "memory_id": "a1b2c3d4-..." }
-```
-
-### Retrieve memories
-
-```bash
-curl "http://localhost:8000/v1/memory/retrieve?agent_id=my-agent&user_id=user-123" \
-  -H "Authorization: Bearer memwire-bootstrap"
-```
-
-```json
-{
-  "memories": [
-    {
-      "id": "a1b2c3d4-...",
-      "memory": "User prefers concise answers and works in Python.",
-      "topics": ["preferences", "programming"],
-      "user_id": "user-123",
-      "timestamp": "2026-02-23T08:12:28Z"
-    }
-  ],
-  "total": 1
-}
-```
-
-### Search memories
-
-```bash
-curl -X POST http://localhost:8000/v1/memory/search \
-  -H "Authorization: Bearer memwire-bootstrap" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "agent_id": "my-agent",
-    "user_id":  "user-123",
-    "query":    "programming language preferences",
-    "limit":    5
-  }'
-```
-
----
-
-## Python Library
-
-Use MemWire directly as a Python library:
+Data is stored on disk in `./memwire_data/`.
 
 ```python
 from memwire import MemWire, MemWireConfig
 
-# With Qdrant server
-config = MemWireConfig(qdrant_url="http://localhost:6333")
+config = MemWireConfig(
+    qdrant_path="./memwire_data",          # local vector store
+    database_url="sqlite:///memory.db",    # metadata ledger
+    qdrant_collection_prefix="app_",
+)
 memory = MemWire(user_id="alice", config=config)
 
-# Or embedded mode
-memory = MemWire(user_id="alice", config=MemWireConfig(qdrant_path=":memory:"))
-
-# Store a conversation turn
+# Add messages to memory
 memory.add([
-    {"role": "user", "content": "I prefer dark mode in all my editors"},
-    {"role": "assistant", "content": "Noted, you prefer dark mode."}
+    {"role": "user", "content": "I prefer dark mode and short answers."}
 ])
 
-# Recall relevant memories
-result = memory.recall("What are the user's UI preferences?")
-for path in result.paths:
-    print(path.summary, f"(relevance: {path.relevance:.2f})")
+# Recall relevant context for a query
+result = memory.recall("How should I format my answers?")
+if result.formatted:
+    print(result.formatted)
+    # → "alice prefers dark mode and short answers."
 
-# Provide feedback to strengthen/weaken edges
-memory.feedback(response="The user prefers dark mode for all editors")
+# Inject recalled context into your LLM prompt
+messages = [
+    {"role": "system", "content": "You are a helpful assistant."},
+]
+if result.formatted:
+    messages.append({"role": "system", "content": f"Memory context:\n{result.formatted}"})
+messages.append({"role": "user", "content": "How should I format my answers?"})
 
-# Knowledge base
-memory.add_knowledge("company_policy.txt", chunk_text)
-results = memory.search_knowledge("vacation policy")
-```
+# After you get the LLM response, reinforce the memory paths that were used
+memory.feedback(response="<assistant response here>")
 
-### API Reference
+# Search memories by keyword / semantic similarity
+hits = memory.search("dark mode", top_k=5)
+for record, score in hits:
+    print(f"[{score:.2f}] ({record.category}) {record.content}")
 
-| Method | Description |
-|--------|-------------|
-| `MemWire(user_id, agent_id?, config?)` | Initialize memory for a user |
-| `.add(messages)` | Store conversation messages |
-| `.recall(query)` | Retrieve relevant memory paths + knowledge |
-| `.feedback(response)` | Reinforce/weaken graph edges based on response |
-| `.search(query, top_k?)` | Direct vector similarity search |
-| `.add_anchor(name, examples)` | Add a classification anchor |
-| `.add_knowledge(source, text)` | Add a knowledge base chunk |
-| `.search_knowledge(query, top_k?)` | Search knowledge base |
-| `.delete_knowledge(source)` | Delete knowledge by source name |
+# Inspect stats
+stats = memory.get_stats()
+print(stats)  # {"memories": 1, "nodes": ..., "edges": ..., "knowledge_bases": 0}
 
----
-
-## CLI Commands
-
-```bash
-./memwire.sh start     # Start all services (sets up .env on first run)
-./memwire.sh stop      # Stop all services
-./memwire.sh build     # Build Docker images from source
-./memwire.sh logs      # Tail all service logs
-./memwire.sh status    # Show running service status
-./memwire.sh reset     # Destroy all containers and volumes
+# Always close to flush background writes
+memory.close()
 ```
 
 ---
 
-## Chat Apps
-
-### CLI Chat
+#### With a local Qdrant server
 
 ```bash
-python chat.py
+docker run -p 6333:6333 qdrant/qdrant
 ```
 
-Supports inline knowledge base commands:
-
-- `kb load <file.txt>` — load a text file into the knowledge base
-- `kb search <query>` — search the knowledge base
-- `kb list` — list loaded knowledge sources
-
-### Web Chat
-
-```bash
-python web_chat.py
+```python
+config = MemWireConfig(
+    qdrant_url="http://localhost:6333",
+    database_url="sqlite:///memory.db",
+    qdrant_collection_prefix="app_",
+)
+memory = MemWire(user_id="alice", config=config)
 ```
-
-Opens at `http://localhost:8000` with streaming chat, memory visualization, knowledge base upload, and performance metrics.
 
 ---
 
-## Configuration
+### REST API
 
-### LLM Providers
+Start the server:
 
-| Provider | `LLM_PROVIDER` | Example `LLM_MODEL` | Notes |
+```bash
+docker compose up -d   # Qdrant + MemWire on :8000
+```
+
+---
+
+#### Store memory
+
+```bash
+curl -X POST http://localhost:8000/v1/memory \
+  -H "Content-Type: application/json" \
+  -d '{
+    "app_id": "app_a",
+    "user_id": "alice",
+    "workspace_id": "team_1",
+    "messages": [
+      { "role": "user", "content": "I prefer dark mode and short answers." }
+    ]
+  }'
+```
+
+```json
+{
+  "stored": 1,
+  "memory_ids": ["mem_3f7a1c2d9e4b"]
+}
+```
+
+---
+
+#### Retrieve (recall) context
+
+```bash
+curl -X POST http://localhost:8000/v1/memory/recall \
+  -H "Content-Type: application/json" \
+  -d '{
+    "app_id": "app_a",
+    "user_id": "alice",
+    "workspace_id": "team_1",
+    "query": "How should I format my answers?",
+    "top_k": 5
+  }'
+```
+
+```json
+{
+  "context": "alice prefers dark mode and short answers.",
+  "paths": 2,
+  "knowledge": []
+}
+```
+
+---
+
+#### Search memories
+
+```bash
+curl -X POST http://localhost:8000/v1/memory/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "app_id": "app_a",
+    "user_id": "alice",
+    "workspace_id": "team_1",
+    "query": "dark mode",
+    "top_k": 10
+  }'
+```
+
+```json
+{
+  "results": [
+    {
+      "memory_id": "mem_3f7a1c2d9e4b",
+      "content": "I prefer dark mode and short answers.",
+      "category": "preference",
+      "score": 0.94
+    }
+  ]
+}
+```
+
+## Customization
+
+MemWire is designed to be a building block, not a black box. Everything is tunable via `MemWireConfig`:
+
+```python
+config = MemWireConfig(
+    # Swap the embedding model entirely
+    model_name="BAAI/bge-small-en-v1.5",
+
+    # Use Qdrant Cloud instead of local
+    qdrant_url="https://your-cluster.qdrant.io",
+    qdrant_api_key="...",
+
+    # Enable reranking for higher precision
+    use_reranking=True,
+    reranker_model_name="Xenova/ms-marco-MiniLM-L-6-v2",
+
+    # Tune memory sensitivity
+    recall_min_relevance=0.3,   # raise to be more selective
+    tension_threshold=0.7,       # lower to catch contradictions earlier
+    recency_halflife=7200.0,     # how fast old memories decay
+
+    # Add your own memory categories
+    default_anchors={
+        "product_feedback": ["The user complained about X", "They liked feature Y"],
+        "tone": ["Always respond formally", "Use emojis"],
+    },
+)
+```
+
+## Supported databases
+
+| Storage | Type | Status | Notes |
 |---|---|---|---|
-| Ollama (local) | `ollama` | `llama3.2` | Any model served by Ollama — no API key needed |
-| OpenAI | `openai` | `gpt-4o` | Requires `LLM_API_KEY` |
-| Azure OpenAI | `azure_openai` | `gpt-4o` | Requires `LLM_API_KEY`, `LLM_BASE_URL`, `AZURE_API_VERSION` |
+| [Qdrant](https://qdrant.tech) | Vector store | ✅ Supported | Embedded, local server, or Qdrant Cloud |
 
-Configure via `api/.env`:
 
-**Ollama (local)**
-```env
-LLM_PROVIDER=ollama
-LLM_MODEL=llama3.2
-LLM_BASE_URL=http://ollama:11434
-```
+## Roadmap
 
-**OpenAI**
-```env
-LLM_PROVIDER=openai
-LLM_MODEL=gpt-4o
-LLM_API_KEY=sk-...
-```
+See [ROADMAP.md](ROADMAP.md) for the full plan.
 
-**Azure OpenAI**
-```env
-LLM_PROVIDER=azure_openai
-LLM_MODEL=gpt-4o
-LLM_API_KEY=your-azure-api-key
-LLM_BASE_URL=https://<resource>.openai.azure.com/
-AZURE_API_VERSION=2024-12-01-preview
-```
 
-### Embedders
+## Contributing
 
-| Provider | `LLM_PROVIDER` | Model | Dimensions | Notes |
-|---|---|---|---|---|
-| Ollama (local) | `ollama` | `nomic-embed-text` | 768 | No API key needed |
-| OpenAI | `openai` | `text-embedding-3-small` | 1536 | Recommended for production |
-| OpenAI | `openai` | `text-embedding-3-large` | 3072 | Highest accuracy |
-| Azure OpenAI | `azure_openai` | `text-embedding-ada-002` | 1536 | Azure-hosted OpenAI embeddings |
-
-Override with:
-
-```env
-EMBEDDING_MODEL=nomic-embed-text
-EMBEDDING_DIMENSIONS=768
-```
-
-### MemWireConfig (Library)
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `model_name` | `all-MiniLM-L6-v2` | Dense embedding model |
-| `sparse_model_name` | `Splade_PP_en_v1` | Sparse embedding model |
-| `qdrant_url` | `None` | Qdrant server URL |
-| `qdrant_path` | `None` | Local Qdrant path (embedded mode) |
-| `use_hybrid_search` | `True` | Enable dense + sparse fusion |
-| `use_reranking` | `False` | Enable cross-encoder reranking |
-| `node_merge_similarity` | `0.85` | Threshold for deduplicating graph nodes |
-| `displacement_threshold` | `0.15` | Min displacement to create graph edges |
-| `recall_max_depth` | `4` | Max BFS depth for recall |
-| `recall_seed_top_k` | `5` | Number of seed nodes for recall |
-
-See `memwire/config.py` for the full list.
-
----
-
-## Database
-
-MemWire uses PostgreSQL with the [pgvector](https://github.com/pgvector/pgvector) extension. A pre-configured container is included — no setup required.
-
-```env
-USE_BUNDLED_DB=true
-DATABASE_URL=postgresql://memwire:memwire@db:5432/memwire
-```
-
----
-
-## Architecture
-
-| Container | Image | Role |
-|---|---|---|
-| `memwire-api` | `memwire/api` | FastAPI memory + knowledge API |
-| `memwire-ui` | `memwire/ui` | React developer dashboard (nginx) |
-| `memwire-db` | `pgvector/pgvector:pg16` | PostgreSQL + pgvector |
-| `memwire-ollama` | `ollama/ollama:latest` | Local LLM + embedder (optional — enabled when `LLM_PROVIDER=ollama`) |
-
-Built with [Agno](https://github.com/agno-agi/agno) for memory and knowledge abstractions.
-
----
-
-## Running Tests
-
-```bash
-python -m pytest tests/ -x -q
-```
-
-Tests use Qdrant in-memory mode — no server required.
-
----
-
-## Project Structure
-
-```
-memwire/
-├── memwire/                 # Core package
-│   ├── api/                 #   Public API (MemWire client)
-│   ├── core/                #   Embeddings, graph, recall, classifier, reranker
-│   ├── storage/             #   Qdrant store, SQLite models, vector ops
-│   ├── migrations/          #   Alembic migrations
-│   ├── utils/               #   Types, math ops
-│   └── config.py            #   MemWireConfig
-├── tests/                   # Test suite (97 tests)
-├── benchmark/               # LOCOMO benchmark suite
-├── chat.py                  # CLI chat app
-├── web_chat.py              # Web chat app (FastAPI)
-├── pyproject.toml
-├── requirements.txt
-└── alembic.ini
-```
-
----
+PRs and issues are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) and [GOVERNANCE.md](GOVERNANCE.md).
 
 ## License
 
-MIT
+Apache License 2.0
