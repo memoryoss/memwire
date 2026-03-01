@@ -17,6 +17,14 @@ docs/
 │       ├── store.mdx          # POST /v1/memory
 │       ├── recall.mdx         # POST /v1/memory/recall
 │       └── search.mdx         # POST /v1/memory/search
+
+examples/
+├── chat.py                    # Terminal chat demo (OpenAI)
+├── chat_azure.py              # Terminal chat demo (Azure OpenAI)
+├── web_chat.py                # Browser chat demo (OpenAI)
+├── web_chat_azure.py          # Browser chat demo (Azure OpenAI)
+├── Dockerfile                 # Builds web_chat.py server
+└── docker-compose.yml         # Qdrant + MemWire server
 ```
 
 ## Local preview

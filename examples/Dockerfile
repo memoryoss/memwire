@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY pyproject.toml alembic.ini ./
 COPY memwire/ memwire/
-COPY web_chat.py chat.py ./
+COPY examples/web_chat.py examples/chat.py ./
 
 # Data directory for SQLite metadata
 RUN mkdir -p /data

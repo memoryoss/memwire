@@ -9,14 +9,18 @@
 
 ## What is MemWire?
 
-MemWire is **an open source & enterprise-ready** AI memory infrastructure layer. MemWire gives your AI applications persistent, auditable memory with structured, updatable facts, **fastest** semantic retrieval across conversations and knowledge, integrated any document ingestion, and controlled LLM context assembly.
+MemWire is **an open source & enterprise-ready** AI memory infrastructure layer. MemWire gives your AI applications persistent, auditable memory with structured, updatable facts, **fastest** semantic retrieval across conversations and knowledge using **graph-based memory**.
 
 - Fully customizable — adapt schemas, memory types, and pipelines to your use case
 - Self-hosted — run entirely on your local machine, on-premise or in your own cloud
 - Multi-tenant — isolate applications, users, and workspaces securely
-- Bring your own database — PostgreSQL, pgvector, Qdrant, Pinecone or your preferred stack
+- Bring your own database — PostgreSQL pgvector, Qdrant, Pinecone, ChromaDB, Weawiate or your preferred stack
 - Bring your own LLM — OpenAI, Anthropic, Gemini, Ollama, or any provider
 - Deploy anywhere — edge, private cloud, public cloud, air-gapped environments
+- Knowledge ingestion — ingest documents (PDF, Excel, CSV, etc.) alongside conversation memory; recalled together at query time
+- Auditable — every memory is traceable, categorized (fact, preference, instruction, event, entity), and inspectable
+- Contradiction detection — conflicting memories are automatically flagged, so your agent always reasons from a consistent state
+- Feedback loop — reinforce memory paths that led to good responses; unused edges decay over time
 
 ---
 
@@ -105,7 +109,7 @@ memory = MemWire(user_id="alice", config=config)
 Start the server:
 
 ```bash
-docker compose up -d   # Qdrant + MemWire on :8000
+docker compose -f examples/docker-compose.yml up -d   # Qdrant + MemWire on :8000
 ```
 
 ---
