@@ -33,6 +33,9 @@ class MemoryEngine:
         role: str = "user",
         user_id: str = "default",
         agent_id: str | None = None,
+        org_id: str = "",
+        app_id: str | None = None,
+        workspace_id: str | None = None,
     ) -> MemoryRecord:
         """Process and store a new memory. Returns the MemoryRecord."""
         memory_id = f"mem_{uuid.uuid4().hex[:12]}"
@@ -45,7 +48,10 @@ class MemoryEngine:
 
         # Get token-level embeddings and build graph
         token_embeddings = self.embeddings.embed_tokens(content)
-        node_ids = self.graph.build_from_tokens(token_embeddings, memory_id)
+        node_ids = self.graph.build_from_tokens(
+            token_embeddings, memory_id,
+            user_id=user_id, app_id=app_id, workspace_id=workspace_id,
+        )
 
         # Cross-link with recent memories only (avoid O(M*T^2) for large histories)
         recent_keys = list(self._memory_nodes.keys())[-self.config.cross_memory_recent_limit:]
@@ -65,6 +71,9 @@ class MemoryEngine:
             timestamp=time.time(),
             node_ids=node_ids,
             agent_id=agent_id,
+            org_id=org_id,
+            workspace_id=workspace_id,
+            app_id=app_id,
         )
 
         self._memories[memory_id] = record

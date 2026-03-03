@@ -62,6 +62,7 @@ MODEL = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
 # --- Globals (set during lifespan) ---
 memory = None
 conversation_history: list[dict[str, str]] = []
+USER_ID = "web_chat_user"
 
 SYSTEM_PROMPT = (
     "You are a helpful assistant with access to a memory system. "
@@ -89,18 +90,18 @@ async def lifespan(app: FastAPI):
         qdrant_url = os.getenv("QDRANT_URL")  # http://localhost:6333 for server mode
 
         config = MemWireConfig(
-            user_id="web_chat_user",
+            org_id="demo_org",
             database_url="sqlite:///web_chat_memory.db",
             qdrant_url=qdrant_url,
             qdrant_path=None if qdrant_url else "web_chat_qdrant",
             qdrant_collection_prefix="web_",
         )
-        memory = MemWire(user_id="web_chat_user", config=config)
+        memory = MemWire(config=config)
     finally:
         sys.stderr = _real_stderr
         logging.disable(logging.NOTSET)
 
-    stats = memory.get_stats()
+    stats = memory.get_stats(user_id=USER_ID)
     print(f"done! ({stats['memories']} memories, {stats['nodes']} nodes loaded)")
     print(
         f"Starting web chat on http://localhost:8000  [Azure OpenAI · deployment: {MODEL}]"
@@ -122,7 +123,7 @@ app = FastAPI(lifespan=lifespan)
 @app.get("/api/health")
 async def api_health():
     try:
-        stats = await run_sync(memory.get_stats)
+        stats = await run_sync(lambda: memory.get_stats(user_id=USER_ID))
         return JSONResponse({"status": "ready", "stats": stats})
     except Exception as e:
         return JSONResponse({"status": "booting", "error": str(e)}, status_code=503)
@@ -130,7 +131,7 @@ async def api_health():
 
 @app.get("/api/stats")
 async def api_stats():
-    stats = await run_sync(memory.get_stats)
+    stats = await run_sync(lambda: memory.get_stats(user_id=USER_ID))
     return JSONResponse(stats)
 
 
@@ -146,7 +147,7 @@ async def api_chat(request: Request):
 
         # 1. Recall with timing
         t0 = time.perf_counter()
-        result = await run_sync(memory.recall, user_input)
+        result = await run_sync(lambda: memory.recall(user_input, user_id=USER_ID))
         t_recall = time.perf_counter() - t0
 
         paths_count = len(result.supporting) if result.supporting else 0
@@ -215,21 +216,20 @@ async def api_chat(request: Request):
         # 5. Add to memory with timing
         t0 = time.perf_counter()
         await run_sync(
-            memory.add,
-            [
+            lambda: memory.add(user_id=USER_ID, messages=[
                 {"role": "user", "content": user_input},
                 {"role": "assistant", "content": assistant_msg},
-            ],
+            ]),
         )
         t_mem_add = time.perf_counter() - t0
 
         # 6. Feedback with timing
         t0 = time.perf_counter()
-        feedback = await run_sync(memory.feedback, assistant_msg)
+        feedback = await run_sync(lambda: memory.feedback(response=assistant_msg, user_id=USER_ID))
         t_feedback = time.perf_counter() - t0
 
         # 7. Final stats + all timing
-        stats = await run_sync(memory.get_stats)
+        stats = await run_sync(lambda: memory.get_stats(user_id=USER_ID))
         t_total = time.perf_counter() - t_start
 
         yield f"data: {json.dumps({'type': 'done', 'stats': stats, 'feedback': feedback, 'perf': {'recall_ms': round(t_recall * 1000, 1), 'ttft_ms': round(t_ttft * 1000, 1), 'gen_ms': round(t_gen_total * 1000, 1), 'tokens': token_count, 'tokens_per_sec': round(tps, 1), 'mem_add_ms': round(t_mem_add * 1000, 1), 'feedback_ms': round(t_feedback * 1000, 1), 'total_ms': round(t_total * 1000, 1), 'output_chars': len(assistant_msg)}})}\n\n"
@@ -246,7 +246,7 @@ async def api_search(request: Request):
         return JSONResponse({"error": "Empty query"}, status_code=400)
 
     t0 = time.perf_counter()
-    results = await run_sync(memory.search, query, None, top_k)
+    results = await run_sync(lambda: memory.search(query, user_id=USER_ID, top_k=top_k))
     elapsed = time.perf_counter() - t0
     return JSONResponse(
         {
@@ -273,7 +273,7 @@ async def api_knowledge_add(request: Request):
         return JSONResponse({"error": "name and chunks required"}, status_code=400)
 
     t0 = time.perf_counter()
-    kb_id = await run_sync(memory.add_knowledge, name, chunks)
+    kb_id = await run_sync(lambda: memory.add_knowledge(name, chunks, user_id=USER_ID))
     elapsed = time.perf_counter() - t0
     return JSONResponse(
         {"kb_id": kb_id, "chunks": len(chunks), "add_ms": round(elapsed * 1000, 1)}
@@ -289,7 +289,7 @@ async def api_knowledge_search(request: Request):
         return JSONResponse({"error": "Empty query"}, status_code=400)
 
     t0 = time.perf_counter()
-    results = await run_sync(memory.search_knowledge, query, top_k)
+    results = await run_sync(lambda: memory.search_knowledge(query, user_id=USER_ID, top_k=top_k))
     elapsed = time.perf_counter() - t0
     return JSONResponse(
         {
@@ -350,7 +350,7 @@ async def api_knowledge_upload(file: UploadFile = File(...), name: str = Form(""
         )
 
     t0 = time.perf_counter()
-    kb_id = await run_sync(memory.add_knowledge, kb_name, chunks)
+    kb_id = await run_sync(lambda: memory.add_knowledge(kb_name, chunks, user_id=USER_ID))
     elapsed = time.perf_counter() - t0
 
     return JSONResponse(

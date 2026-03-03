@@ -24,7 +24,12 @@ class DisplacementGraph:
         self._dirty_edges: set[tuple[str, str]] = set()
 
     def build_from_tokens(
-        self, token_embeddings: list[TokenEmbedding], memory_id: str
+        self,
+        token_embeddings: list[TokenEmbedding],
+        memory_id: str,
+        user_id: str = "",
+        app_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
     ) -> list[str]:
         """Build graph nodes/edges from token embeddings. Returns created node IDs."""
         if not token_embeddings:
@@ -32,7 +37,10 @@ class DisplacementGraph:
 
         node_ids = []
         for te in token_embeddings:
-            node = self._find_or_create_node(te, memory_id)
+            node = self._find_or_create_node(
+                te, memory_id,
+                user_id=user_id, app_id=app_id, workspace_id=workspace_id,
+            )
             node_ids.append(node.node_id)
 
         # Connect nodes whose displacement vectors are similar
@@ -42,17 +50,25 @@ class DisplacementGraph:
                     continue
                 disp_sim = cosine_similarity(te_a.displacement, te_b.displacement)
                 if disp_sim > self.config.displacement_threshold:
-                    self._add_edge(node_ids[i], node_ids[j], disp_sim)
+                    self._add_edge(node_ids[i], node_ids[j], disp_sim, user_id=user_id)
 
         return node_ids
 
     def _find_or_create_node(
-        self, te: TokenEmbedding, memory_id: str
+        self,
+        te: TokenEmbedding,
+        memory_id: str,
+        user_id: str = "",
+        app_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
     ) -> GraphNode:
         """Find existing node for this token or create a new one."""
         # Qdrant-accelerated dedup for large graphs
         if self.qdrant_store is not None and len(self.nodes) > 50:
-            results = self.qdrant_store.search_nodes(te.contextual, top_k=1)
+            results = self.qdrant_store.search_nodes(
+                te.contextual, top_k=1,
+                user_id=user_id or None, app_id=app_id, workspace_id=workspace_id,
+            )
             if results:
                 node_id_str, score = results[0]
                 if score > self.config.node_merge_similarity and node_id_str in self.nodes:
@@ -86,6 +102,9 @@ class DisplacementGraph:
             token=te.token,
             embedding=te.contextual,
             memory_ids=[memory_id],
+            user_id=user_id,
+            app_id=app_id,
+            workspace_id=workspace_id,
         )
         self.nodes[node_id] = node
         self._adjacency[node_id] = {}
@@ -97,7 +116,7 @@ class DisplacementGraph:
         if node.node_id not in self._adjacency:
             self._adjacency[node.node_id] = {}
 
-    def _add_edge(self, source_id: str, target_id: str, disp_sim: float) -> GraphEdge:
+    def _add_edge(self, source_id: str, target_id: str, disp_sim: float, user_id: str = "") -> GraphEdge:
         """Add or update an edge between two nodes."""
         key = (min(source_id, target_id), max(source_id, target_id))
         if key in self.edges:
@@ -113,6 +132,7 @@ class DisplacementGraph:
             target_id=key[1],
             weight=self.config.edge_weight_default,
             displacement_sim=disp_sim,
+            user_id=user_id,
         )
         self.edges[key] = edge
         self._adjacency.setdefault(key[0], {})[key[1]] = key

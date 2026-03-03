@@ -42,16 +42,32 @@ class DatabaseManager:
                 node_ids_json=json.dumps(record.node_ids),
                 created_at=record.timestamp,
                 access_count=record.access_count,
+                org_id=record.org_id,
+                workspace_id=record.workspace_id,
+                app_id=record.app_id,
             )
             session.merge(model)
             session.commit()
 
-    def load_memories(self, user_id: str, agent_id: Optional[str] = None) -> list[MemoryRecord]:
+    def load_memories(
+        self,
+        user_id: str,
+        agent_id: Optional[str] = None,
+        org_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
+        app_id: Optional[str] = None,
+    ) -> list[MemoryRecord]:
         """Load memory metadata. Returns records without embeddings."""
         with self._session() as session:
             query = session.query(MemoryModel).filter_by(user_id=user_id)
             if agent_id is not None:
                 query = query.filter_by(agent_id=agent_id)
+            if org_id is not None:
+                query = query.filter_by(org_id=org_id)
+            if workspace_id is not None:
+                query = query.filter_by(workspace_id=workspace_id)
+            if app_id is not None:
+                query = query.filter_by(app_id=app_id)
             rows = query.all()
             return [self._model_to_record(r) for r in rows]
 
@@ -68,6 +84,9 @@ class DatabaseManager:
             node_ids=json.loads(m.node_ids_json),
             agent_id=m.agent_id,
             access_count=m.access_count if m.access_count is not None else 0,
+            org_id=m.org_id if m.org_id is not None else "",
+            workspace_id=m.workspace_id,
+            app_id=m.app_id,
         )
 
     def update_memory_strength(self, memory_id: str, strength: float) -> None:
@@ -93,14 +112,20 @@ class DatabaseManager:
                 node_id=node.node_id,
                 token=node.token,
                 memory_ids_json=json.dumps(node.memory_ids),
+                user_id=node.user_id,
+                app_id=node.app_id,
+                workspace_id=node.workspace_id,
             )
             session.merge(model)
             session.commit()
 
-    def load_nodes(self) -> list[dict]:
+    def load_nodes(self, user_id: Optional[str] = None) -> list[dict]:
         """Load node metadata (no embeddings). Returns list of dicts."""
         with self._session() as session:
-            rows = session.query(GraphNodeModel).all()
+            query = session.query(GraphNodeModel)
+            if user_id is not None:
+                query = query.filter_by(user_id=user_id)
+            rows = query.all()
             return [
                 {
                     "node_id": r.node_id,
@@ -119,6 +144,7 @@ class DatabaseManager:
                 target_id=edge.target_id,
                 weight=edge.weight,
                 displacement_sim=edge.displacement_sim,
+                user_id=edge.user_id,
             )
             session.merge(model)
             session.commit()
@@ -130,30 +156,43 @@ class DatabaseManager:
                 session.execute(
                     text(
                         "INSERT OR REPLACE INTO edges "
-                        "(source_id, target_id, weight, displacement_sim) "
-                        "VALUES (:src, :tgt, :w, :ds)"
+                        "(source_id, target_id, weight, displacement_sim, user_id) "
+                        "VALUES (:src, :tgt, :w, :ds, :uid)"
                     ),
                     {"src": edge.source_id, "tgt": edge.target_id,
-                     "w": edge.weight, "ds": edge.displacement_sim},
+                     "w": edge.weight, "ds": edge.displacement_sim,
+                     "uid": edge.user_id},
                 )
             session.commit()
 
-    def load_edges(self) -> list[GraphEdge]:
+    def load_edges(self, user_id: Optional[str] = None) -> list[GraphEdge]:
         with self._session() as session:
-            rows = session.query(EdgeModel).all()
+            query = session.query(EdgeModel)
+            if user_id is not None:
+                query = query.filter_by(user_id=user_id)
+            rows = query.all()
             return [
                 GraphEdge(
                     source_id=r.source_id,
                     target_id=r.target_id,
                     weight=r.weight,
                     displacement_sim=r.displacement_sim,
+                    user_id=getattr(r, 'user_id', ''),
                 )
                 for r in rows
             ]
 
     # --- Anchor CRUD ---
 
-    def save_anchor(self, name: str, user_id: str, texts) -> None:
+    def save_anchor(
+        self,
+        name: str,
+        user_id: str,
+        texts,
+        org_id: str = "default",
+        workspace_id: Optional[str] = None,
+        app_id: Optional[str] = None,
+    ) -> None:
         """Save anchor with texts as JSON list (no embedding blob)."""
         with self._session() as session:
             texts_list = texts if isinstance(texts, list) else [texts]
@@ -161,14 +200,27 @@ class DatabaseManager:
                 name=name,
                 user_id=user_id,
                 texts_json=json.dumps(texts_list),
+                org_id=org_id,
+                workspace_id=workspace_id,
+                app_id=app_id,
             )
             session.merge(model)
             session.commit()
 
-    def load_anchors(self, user_id: str) -> list[tuple[str, list[str]]]:
+    def load_anchors(
+        self,
+        user_id: str,
+        workspace_id: Optional[str] = None,
+        app_id: Optional[str] = None,
+    ) -> list[tuple[str, list[str]]]:
         """Returns list of (name, texts_list)."""
         with self._session() as session:
-            rows = session.query(AnchorModel).filter_by(user_id=user_id).all()
+            query = session.query(AnchorModel).filter_by(user_id=user_id)
+            if workspace_id is not None:
+                query = query.filter_by(workspace_id=workspace_id)
+            if app_id is not None:
+                query = query.filter_by(app_id=app_id)
+            rows = query.all()
             return [
                 (r.name, json.loads(r.texts_json))
                 for r in rows
@@ -184,6 +236,8 @@ class DatabaseManager:
         agent_id: Optional[str] = None,
         description: str = "",
         chunk_count: int = 0,
+        workspace_id: Optional[str] = None,
+        app_id: Optional[str] = None,
     ) -> None:
         """Save knowledge base metadata."""
         with self._session() as session:
@@ -195,6 +249,8 @@ class DatabaseManager:
                 description=description,
                 created_at=time.time(),
                 chunk_count=chunk_count,
+                workspace_id=workspace_id,
+                app_id=app_id,
             )
             session.merge(model)
             session.commit()
@@ -203,12 +259,18 @@ class DatabaseManager:
         self,
         user_id: str,
         agent_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
+        app_id: Optional[str] = None,
     ) -> list[dict]:
         """Load knowledge bases for user/agent."""
         with self._session() as session:
             query = session.query(KnowledgeBaseModel).filter_by(user_id=user_id)
             if agent_id is not None:
                 query = query.filter_by(agent_id=agent_id)
+            if workspace_id is not None:
+                query = query.filter_by(workspace_id=workspace_id)
+            if app_id is not None:
+                query = query.filter_by(app_id=app_id)
             rows = query.all()
             return [
                 {

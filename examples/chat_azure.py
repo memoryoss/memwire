@@ -73,18 +73,19 @@ try:
     qdrant_url = os.getenv("QDRANT_URL")  # set to http://localhost:6333 for server mode
 
     config = MemWireConfig(
-        user_id="chat_user",
+        org_id="demo_org",
         database_url="sqlite:///chat_memory.db",
         qdrant_url=qdrant_url,
         qdrant_path=None if qdrant_url else "chat_qdrant",
         qdrant_collection_prefix="chat_",
     )
-    memory = MemWire(user_id="chat_user", config=config)
+    memory = MemWire(config=config)
+    USER_ID = "chat_user"
 finally:
     sys.stderr = _real_stderr
     logging.disable(logging.NOTSET)
 
-stats = memory.get_stats()
+stats = memory.get_stats(user_id=USER_ID)
 print(f"done! ({stats['memories']} memories, {stats['nodes']} nodes loaded)")
 
 conversation_history: list[dict[str, str]] = []
@@ -101,7 +102,7 @@ def build_messages(user_input: str) -> list[dict[str, str]]:
 
     # Recall relevant memories
     print("  [recalling memories...]", end="", flush=True)
-    result = memory.recall(user_input)
+    result = memory.recall(user_input, user_id=USER_ID)
     if result.formatted:
         messages.append(
             {
@@ -146,15 +147,13 @@ def chat(user_input: str) -> str:
     conversation_history.append({"role": "assistant", "content": assistant_msg})
 
     # Store to vector memory (runs embedding per token — takes a moment)
-    memory.add(
-        [
-            {"role": "user", "content": user_input},
-            {"role": "assistant", "content": assistant_msg},
-        ]
-    )
+    memory.add(user_id=USER_ID, messages=[
+        {"role": "user", "content": user_input},
+        {"role": "assistant", "content": assistant_msg},
+    ])
 
     # Feedback to strengthen relevant memory paths
-    memory.feedback(response=assistant_msg)
+    memory.feedback(response=assistant_msg, user_id=USER_ID)
 
     return assistant_msg
 
@@ -187,7 +186,7 @@ def main():
         if user_input.lower() == "quit":
             shutdown()
         if user_input.lower() == "memory":
-            s = memory.get_stats()
+            s = memory.get_stats(user_id=USER_ID)
             print(
                 f"\n[Memory] {s['memories']} memories | {s['nodes']} nodes | {s['edges']} edges | {s['knowledge_bases']} KBs"
             )
@@ -198,7 +197,7 @@ def main():
             except EOFError:
                 continue
             if query:
-                results = memory.search(query, top_k=5)
+                results = memory.search(query, user_id=USER_ID, top_k=5)
                 if results:
                     print("\n[Search Results]")
                     for record, score in results:
@@ -239,14 +238,14 @@ def main():
                 end=" ",
                 flush=True,
             )
-            kb_id = memory.add_knowledge(kb_name, chunks)
+            kb_id = memory.add_knowledge(kb_name, chunks, user_id=USER_ID)
             print(f"done! KB: {kb_id}")
             continue
 
         if user_input.lower().startswith("kb search "):
             query = user_input[10:].strip()
             if query:
-                results = memory.search_knowledge(query, top_k=5)
+                results = memory.search_knowledge(query, user_id=USER_ID, top_k=5)
                 if results:
                     print("\n[Knowledge Results]")
                     for chunk in results:
@@ -258,7 +257,7 @@ def main():
             continue
 
         if user_input.lower() == "kb list":
-            s = memory.get_stats()
+            s = memory.get_stats(user_id=USER_ID)
             print(f"\n[Knowledge Bases] {s['knowledge_bases']} loaded")
             continue
 

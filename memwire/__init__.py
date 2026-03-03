@@ -5,15 +5,16 @@ Displacement-based graph construction from token embeddings,
 path-based recall with tension detection, and explicit API.
 
 Usage:
-    from memwire import MemWire
+    from memwire import MemWire, MemWireConfig
 
-    memory = MemWire(user_id="buyer_1")
-    memory.add([{"role": "user", "content": "We prefer organic materials"}])
-    result = memory.recall("Which vendor should we use?")
-    memory.feedback(response="Based on your preference for organic, I recommend Vendor A")
+    config = MemWireConfig(org_id="my_org")
+    memory = MemWire(config=config)
+    memory.add(user_id="buyer_1", messages=[{"role": "user", "content": "We prefer organic materials"}])
+    result = memory.recall("Which vendor should we use?", user_id="buyer_1")
+    memory.feedback(response="Based on your preference for organic, I recommend Vendor A", user_id="buyer_1")
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 from .api.client import MemWire
 from .config import MemWireConfig
