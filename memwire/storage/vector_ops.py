@@ -22,6 +22,8 @@ def find_similar_memories(
     user_id: str | None = None,
     agent_id: str | None = None,
     memory_dict: dict[str, MemoryRecord] | None = None,
+    workspace_id: str | None = None,
+    app_id: str | None = None,
 ) -> list[tuple[MemoryRecord, float]]:
     """Find memories most similar to query embedding via Qdrant hybrid search.
 
@@ -38,6 +40,8 @@ def find_similar_memories(
         agent_id=agent_id,
         category=category,
         top_k=top_k,
+        workspace_id=workspace_id,
+        app_id=app_id,
     )
 
     # Resolve memory IDs from in-memory dict or payload
@@ -59,6 +63,9 @@ def find_similar_memories(
                 node_ids=json.loads(payload.get("node_ids", "[]")),
                 agent_id=payload.get("agent_id") or None,
                 access_count=payload.get("access_count", 0),
+                org_id=payload.get("org_id", ""),
+                workspace_id=payload.get("workspace_id") or None,
+                app_id=payload.get("app_id") or None,
             )
 
         if score >= min_similarity:
@@ -72,6 +79,9 @@ def find_seed_nodes(
     graph: DisplacementGraph,
     top_k: int = 5,
     qdrant_store=None,
+    user_id: str | None = None,
+    app_id: str | None = None,
+    workspace_id: str | None = None,
 ) -> list[tuple[GraphNode, float]]:
     """Find graph nodes most similar to query embedding (entry points for BFS).
 
@@ -81,7 +91,10 @@ def find_seed_nodes(
         return []
 
     if qdrant_store is not None:
-        results_raw = qdrant_store.search_nodes(query_embedding, top_k=top_k)
+        results_raw = qdrant_store.search_nodes(
+            query_embedding, top_k=top_k,
+            user_id=user_id, app_id=app_id, workspace_id=workspace_id,
+        )
         results = []
         for node_id_str, score in results_raw:
             if node_id_str in graph.nodes:

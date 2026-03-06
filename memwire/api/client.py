@@ -9,6 +9,7 @@ from ..config import MemWireConfig
 from ..core.engine import MemoryEngine
 from ..core.recall import RecallEngine
 from ..core.feedback import FeedbackProcessor
+from ..core.graph import DisplacementGraph
 from ..storage.database import DatabaseManager
 from ..storage.qdrant_store import QdrantStore
 from ..storage.vector_ops import find_similar_memories, rebuild_graph_from_db
@@ -19,23 +20,23 @@ logger = logging.getLogger(__name__)
 
 
 class MemWire:
-    """Explicit API for vector-based memory. No automatic LLM interception."""
+    """Explicit API for vector-based memory. No automatic LLM interception.
+
+    A single MemWire instance can serve an entire organization.
+    User isolation is enforced at query time via per-user graph caches
+    and hierarchy filters (org > workspace > app > user).
+    """
 
     def __init__(
         self,
-        user_id: str = "default",
-        agent_id: Optional[str] = None,
         config: Optional[MemWireConfig] = None,
     ):
         self.config = config or MemWireConfig()
-        self.config.user_id = user_id
-        self.user_id = user_id
-        self.agent_id = agent_id
 
         # Qdrant store (always required)
         self.qdrant_store = QdrantStore(self.config)
 
-        # Core components
+        # Core components (shared across users)
         self.engine = MemoryEngine(self.config, qdrant_store=self.qdrant_store)
         self.recall_engine = RecallEngine(self.config)
         self.feedback_processor = FeedbackProcessor(self.config)
@@ -50,11 +51,27 @@ class MemWire:
         # Background processing
         self._executor = ThreadPoolExecutor(max_workers=self.config.background_threads)
 
-        # Last recall result (for feedback)
-        self._last_recall: Optional[RecallResult] = None
+        # Per-user graph cache: "user_id:app_id:workspace_id" -> DisplacementGraph
+        self._graphs: dict[str, DisplacementGraph] = {}
 
-        # Load persisted state
-        self._load_from_db()
+        # Per-user last recall result (for feedback): same key as _graphs
+        self._last_recalls: dict[str, RecallResult] = {}
+
+    def _graph_key(self, user_id: str, app_id: Optional[str] = None, workspace_id: Optional[str] = None) -> str:
+        return f"{user_id}:{app_id or ''}:{workspace_id or ''}"
+
+    def _get_graph(self, user_id: str, app_id: Optional[str] = None, workspace_id: Optional[str] = None) -> DisplacementGraph:
+        """Lazy per-user graph loading."""
+        key = self._graph_key(user_id, app_id, workspace_id)
+        if key not in self._graphs:
+            nodes = self.qdrant_store.load_nodes(
+                user_id=user_id, app_id=app_id, workspace_id=workspace_id,
+            )
+            edges = self.db.load_edges(user_id=user_id)
+            graph = rebuild_graph_from_db(nodes, edges, self.config)
+            graph.qdrant_store = self.qdrant_store
+            self._graphs[key] = graph
+        return self._graphs[key]
 
     def _get_reranker(self):
         if self._reranker is None:
@@ -73,33 +90,62 @@ class MemWire:
         if exc:
             logger.error("Background persistence error: %s", exc, exc_info=True)
 
-    def add(self, messages: list[dict[str, str]]) -> list[MemoryRecord]:
+    def add(
+        self,
+        *,
+        user_id: str,
+        messages: list[dict[str, str]],
+        agent_id: Optional[str] = None,
+        app_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
+    ) -> list[MemoryRecord]:
         """Add memories from message dicts. Each must have 'role' and 'content'."""
+        org_id = self.config.org_id
+        graph = self._get_graph(user_id, app_id, workspace_id)
+
+        # Temporarily swap the engine's graph to the user-scoped one
+        original_graph = self.engine.graph
+        self.engine.graph = graph
+
         records = []
-        for msg in messages:
-            content = msg.get("content", "")
-            role = msg.get("role", "user")
-            if not content.strip():
-                continue
-            record = self.engine.add_memory(
-                content, role=role, user_id=self.user_id, agent_id=self.agent_id,
-            )
-            records.append(record)
+        try:
+            for msg in messages:
+                content = msg.get("content", "")
+                role = msg.get("role", "user")
+                if not content.strip():
+                    continue
+                record = self.engine.add_memory(
+                    content, role=role, user_id=user_id, agent_id=agent_id,
+                    org_id=org_id, app_id=app_id, workspace_id=workspace_id,
+                )
+                records.append(record)
 
-            # Compute sparse embedding for Qdrant
-            sparse_data = None
-            try:
-                indices, values = self.engine.embeddings.embed_sparse(content)
-                sparse_data = (indices, values)
-            except Exception as e:
-                logger.warning("Sparse embedding failed: %s", e)
+                # Compute sparse embedding for Qdrant
+                sparse_data = None
+                try:
+                    indices, values = self.engine.embeddings.embed_sparse(content)
+                    sparse_data = (indices, values)
+                except Exception as e:
+                    logger.warning("Sparse embedding failed: %s", e)
 
-            # Persist asynchronously
-            self._submit_bg(self._persist_memory, record, sparse_data)
+                # Persist asynchronously
+                self._submit_bg(self._persist_memory, record, sparse_data, graph)
+        finally:
+            self.engine.graph = original_graph
+
         return records
 
-    def recall(self, query: str) -> RecallResult:
+    def recall(
+        self,
+        query: str,
+        *,
+        user_id: str,
+        agent_id: Optional[str] = None,
+        app_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
+    ) -> RecallResult:
         """Recall relevant memory paths for a query."""
+        graph = self._get_graph(user_id, app_id, workspace_id)
         query_embedding = self.engine.embeddings.embed_sentence(query)
 
         # Compute sparse embedding for knowledge search
@@ -112,37 +158,56 @@ class MemWire:
 
         result = self.recall_engine.recall(
             query_embedding=query_embedding,
-            graph=self.engine.graph,
+            graph=graph,
             memories=self.engine._memories,
             query_text=query,
             qdrant_store=self.qdrant_store,
             sparse_indices=sparse_indices,
             sparse_values=sparse_values,
-            user_id=self.user_id,
-            agent_id=self.agent_id,
+            user_id=user_id,
+            agent_id=agent_id,
+            app_id=app_id,
+            workspace_id=workspace_id,
         )
 
         result.formatted = self.formatter.format(result)
-        self._last_recall = result
+        key = self._graph_key(user_id, app_id, workspace_id)
+        self._last_recalls[key] = result
         return result
 
-    def feedback(self, response: str) -> dict[str, int]:
+    def feedback(
+        self,
+        response: str,
+        *,
+        user_id: str,
+        agent_id: Optional[str] = None,
+        app_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
+    ) -> dict[str, int]:
         """Provide feedback from LLM response to strengthen/weaken paths."""
-        if not self._last_recall:
+        key = self._graph_key(user_id, app_id, workspace_id)
+        last_recall = self._last_recalls.get(key)
+        if not last_recall:
             return {"strengthened": 0, "weakened": 0}
 
+        graph = self._get_graph(user_id, app_id, workspace_id)
         response_embedding = self.engine.embeddings.embed_sentence(response)
         stats = self.feedback_processor.process(
-            response_embedding, self._last_recall, self.engine.graph
+            response_embedding, last_recall, graph
         )
 
         # Persist only dirty edge changes asynchronously
-        self._submit_bg(self._persist_graph)
+        self._submit_bg(self._persist_graph, graph)
         return stats
 
     def search(
         self,
         query: str,
+        *,
+        user_id: str,
+        agent_id: Optional[str] = None,
+        app_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
         category: Optional[str] = None,
         top_k: int = 10,
     ) -> list[tuple[MemoryRecord, float]]:
@@ -165,9 +230,11 @@ class MemWire:
             qdrant_store=self.qdrant_store,
             sparse_indices=sparse_indices,
             sparse_values=sparse_values,
-            user_id=self.user_id,
-            agent_id=self.agent_id,
+            user_id=user_id,
+            agent_id=agent_id,
             memory_dict=self.engine._memories,
+            workspace_id=workspace_id,
+            app_id=app_id,
         )
 
         # Optional cross-encoder reranking
@@ -177,7 +244,15 @@ class MemWire:
 
         return results[:top_k]
 
-    def add_anchor(self, name: str, text: str) -> None:
+    def add_anchor(
+        self,
+        name: str,
+        text: str,
+        *,
+        user_id: str,
+        app_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
+    ) -> None:
         """Add or update a classification anchor."""
         self.engine.classifier.add_anchor(
             name, text, self.engine.embeddings.embed_sentence
@@ -185,12 +260,22 @@ class MemWire:
         # Save the full texts list so multi-text anchors survive restart
         texts = self.engine.classifier.get_anchors().get(name, [text])
         self._submit_bg(
-            self.db.save_anchor, name, self.user_id, texts
+            self.db.save_anchor, name, user_id, texts,
+            self.config.org_id, workspace_id, app_id,
         )
 
     # --- Knowledge Base API ---
 
-    def add_knowledge(self, name: str, chunks: list[dict]) -> str:
+    def add_knowledge(
+        self,
+        name: str,
+        chunks: list[dict],
+        *,
+        user_id: str,
+        agent_id: Optional[str] = None,
+        app_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
+    ) -> str:
         """Add a knowledge base. Each chunk dict has 'content' and optional 'metadata'.
 
         Returns kb_id.
@@ -200,10 +285,12 @@ class MemWire:
         # Save KB metadata to SQLite
         self.db.save_knowledge_base(
             kb_id=kb_id,
-            user_id=self.user_id,
+            user_id=user_id,
             name=name,
-            agent_id=self.agent_id,
+            agent_id=agent_id,
             chunk_count=len(chunks),
+            workspace_id=workspace_id,
+            app_id=app_id,
         )
 
         # Embed and save each chunk to Qdrant
@@ -227,17 +314,28 @@ class MemWire:
                 chunk_id=chunk_id,
                 dense_embedding=dense_emb,
                 kb_id=kb_id,
-                user_id=self.user_id,
+                user_id=user_id,
                 content=content,
-                agent_id=self.agent_id,
+                agent_id=agent_id,
                 metadata=metadata,
                 sparse_indices=sparse_indices,
                 sparse_values=sparse_values,
+                workspace_id=workspace_id,
+                app_id=app_id,
             )
 
         return kb_id
 
-    def search_knowledge(self, query: str, top_k: int = 5) -> list[KnowledgeChunk]:
+    def search_knowledge(
+        self,
+        query: str,
+        *,
+        user_id: str,
+        agent_id: Optional[str] = None,
+        app_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
+        top_k: int = 5,
+    ) -> list[KnowledgeChunk]:
         """Direct search over knowledge chunks."""
         query_embedding = self.engine.embeddings.embed_sentence(query)
 
@@ -251,11 +349,13 @@ class MemWire:
         return self.recall_engine.search_knowledge(
             query_embedding=query_embedding,
             qdrant_store=self.qdrant_store,
-            user_id=self.user_id,
-            agent_id=self.agent_id,
+            user_id=user_id,
+            agent_id=agent_id,
             sparse_indices=sparse_indices,
             sparse_values=sparse_values,
             top_k=top_k,
+            app_id=app_id,
+            workspace_id=workspace_id,
         )
 
     def delete_knowledge(self, kb_id: str) -> None:
@@ -263,20 +363,29 @@ class MemWire:
         self.qdrant_store.delete_knowledge_chunks(kb_id)
         self.db.delete_knowledge_base(kb_id)
 
-    def get_stats(self) -> dict:
+    def get_stats(
+        self,
+        *,
+        user_id: str,
+        agent_id: Optional[str] = None,
+        app_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
+    ) -> dict:
         """Return statistics about the memory system."""
-        kbs = self.db.load_knowledge_bases(self.user_id, self.agent_id)
+        graph = self._get_graph(user_id, app_id, workspace_id)
+        kbs = self.db.load_knowledge_bases(user_id, agent_id,
+                                           workspace_id=workspace_id, app_id=app_id)
         return {
             "memories": len(self.engine._memories),
-            "nodes": len(self.engine.graph.nodes),
-            "edges": len(self.engine.graph.edges),
+            "nodes": len(graph.nodes),
+            "edges": len(graph.edges),
             "anchors": list(self.engine.classifier.get_anchors().keys()),
             "knowledge_bases": len(kbs),
         }
 
     # --- Persistence ---
 
-    def _persist_memory(self, record: MemoryRecord, sparse_data=None) -> None:
+    def _persist_memory(self, record: MemoryRecord, sparse_data=None, graph: Optional[DisplacementGraph] = None) -> None:
         """Persist a memory and its graph nodes/edges to Qdrant + SQLite."""
         # Persist memory to Qdrant
         sparse_indices = sparse_data[0] if sparse_data else None
@@ -287,51 +396,27 @@ class MemWire:
         self.db.save_memory(record)
 
         # Persist graph nodes to Qdrant
+        target_graph = graph or self.engine.graph
         for nid in record.node_ids:
-            node = self.engine.graph.nodes.get(nid)
+            node = target_graph.nodes.get(nid)
             if node:
                 self.qdrant_store.save_node(node)
 
         # Edges always go to SQLite
-        self._persist_graph()
+        self._persist_graph(target_graph)
 
-    def _persist_graph(self) -> None:
+    def _persist_graph(self, graph: Optional[DisplacementGraph] = None) -> None:
         """Persist only dirty graph edges (incremental, always to SQLite)."""
-        dirty = self.engine.graph.pop_dirty_edges()
+        target_graph = graph or self.engine.graph
+        dirty = target_graph.pop_dirty_edges()
         if dirty:
             self.db.save_edges_batch(dirty)
 
-    def _load_from_db(self) -> None:
-        """Load persisted memories and rebuild graph on startup."""
-        # Load memories from Qdrant
-        records = self.qdrant_store.load_memories(self.user_id)
-        for record in records:
-            self.engine.load_memory(record)
-
-        # Load graph nodes from Qdrant, edges from SQLite
-        nodes = self.qdrant_store.load_nodes()
-        edges = self.db.load_edges()
-        if nodes:
-            rebuilt = rebuild_graph_from_db(nodes, edges, self.config)
-            rebuilt.qdrant_store = self.qdrant_store
-            self.engine.graph = rebuilt
-
-        # Load custom anchors (always from SQLite)
-        anchors = self.db.load_anchors(self.user_id)
-        for name, texts in anchors:
-            if isinstance(texts, list):
-                for text in texts:
-                    self.engine.classifier.add_anchor(
-                        name, text, self.engine.embeddings.embed_sentence
-                    )
-            else:
-                # Backward compat: single string from old DB
-                self.engine.classifier.add_anchor(
-                    name, texts, self.engine.embeddings.embed_sentence
-                )
-
     def close(self) -> None:
         """Shutdown background threads and persist final state."""
-        self._persist_graph()
+        # Persist dirty edges from all cached graphs
+        for graph in self._graphs.values():
+            self._persist_graph(graph)
+        self._persist_graph(self.engine.graph)
         self._executor.shutdown(wait=True)
         self.qdrant_store.close()

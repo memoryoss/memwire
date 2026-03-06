@@ -86,7 +86,7 @@ class MemWireConfig:
 
     # Storage
     database_url: Optional[str] = None
-    user_id: str = "default"
+    org_id: str = "default"
 
     # Embedding cache
     embedding_cache_maxsize: int = 10_000
@@ -98,7 +98,7 @@ class MemWireConfig:
     background_threads: int = 2
 
     def get_database_url(self) -> str:
-        """Return database URL, defaulting to SQLite file per user."""
+        """Return database URL, defaulting to SQLite file per org."""
         if self.database_url:
             return self.database_url
-        return f"sqlite:///memwire_{self.user_id}.db"
+        return f"sqlite:///memwire_{self.org_id}.db"

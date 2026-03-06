@@ -26,6 +26,9 @@ class GraphNode:
     token: str
     embedding: np.ndarray
     memory_ids: list[str] = field(default_factory=list)
+    user_id: str = ""
+    app_id: Optional[str] = None
+    workspace_id: Optional[str] = None
 
     def __hash__(self):
         return hash(self.node_id)
@@ -38,6 +41,7 @@ class GraphEdge:
     target_id: str
     weight: float = 0.5
     displacement_sim: float = 0.0
+    user_id: str = ""
 
     @property
     def key(self) -> tuple[str, str]:
@@ -58,6 +62,9 @@ class MemoryRecord:
     node_ids: list[str] = field(default_factory=list)
     agent_id: Optional[str] = None
     access_count: int = 0
+    org_id: str = ""
+    workspace_id: Optional[str] = None
+    app_id: Optional[str] = None
 
 
 @dataclass
@@ -70,6 +77,8 @@ class KnowledgeChunk:
     content: str = ""
     metadata: dict = field(default_factory=dict)  # source, page, etc.
     score: float = 0.0  # populated during search
+    workspace_id: Optional[str] = None
+    app_id: Optional[str] = None
 
 
 @dataclass

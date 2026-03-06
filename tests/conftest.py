@@ -4,13 +4,15 @@ import os
 import pytest
 from memwire import MemWire, MemWireConfig
 
+TEST_USER = "test_user"
+
 
 @pytest.fixture
 def config():
     """Fresh config with in-memory storage for test isolation (Qdrant-only)."""
     return MemWireConfig(
         database_url="sqlite:///:memory:",
-        user_id="test_user",
+        org_id="test_org",
         qdrant_path=":memory:",
     )
 
@@ -18,7 +20,7 @@ def config():
 @pytest.fixture
 def memory(config):
     """Fresh MemWire instance per test."""
-    mem = MemWire(user_id="test_user", config=config)
+    mem = MemWire(config=config)
     yield mem
     mem.close()
 
@@ -26,7 +28,7 @@ def memory(config):
 @pytest.fixture
 def seeded_memory(memory):
     """Memory pre-loaded with a diverse set of memories."""
-    memory.add([
+    memory.add(user_id=TEST_USER, messages=[
         {"role": "user", "content": "We prefer organic materials for all products"},
         {"role": "assistant", "content": "Noted, I will prioritize organic suppliers"},
         {"role": "user", "content": "Our budget is limited to 50k per quarter"},

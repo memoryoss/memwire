@@ -1,9 +1,11 @@
 """Test 2: Classification accuracy — do memories get the right category?"""
 
+from tests.conftest import TEST_USER
+
 
 def test_fact_classification(memory):
     """Facts should be classified as 'fact'."""
-    records = memory.add([
+    records = memory.add(user_id=TEST_USER, messages=[
         {"role": "user", "content": "The Earth orbits the Sun"},
         {"role": "user", "content": "Water boils at 100 degrees Celsius"},
         {"role": "user", "content": "Python was created by Guido van Rossum"},
@@ -17,7 +19,7 @@ def test_fact_classification(memory):
 
 def test_preference_classification(memory):
     """Preferences should be classified as 'preference'."""
-    records = memory.add([
+    records = memory.add(user_id=TEST_USER, messages=[
         {"role": "user", "content": "I prefer dark mode over light mode"},
         {"role": "user", "content": "I like my coffee black with no sugar"},
         {"role": "user", "content": "I enjoy working late at night"},
@@ -30,7 +32,7 @@ def test_preference_classification(memory):
 
 def test_instruction_classification(memory):
     """Instructions should be classified as 'instruction'."""
-    records = memory.add([
+    records = memory.add(user_id=TEST_USER, messages=[
         {"role": "user", "content": "Always respond in formal English"},
         {"role": "user", "content": "Never share my personal information"},
         {"role": "user", "content": "Send me a weekly summary every Monday"},
@@ -43,7 +45,7 @@ def test_instruction_classification(memory):
 
 def test_event_classification(memory):
     """Events should be classified as 'event'."""
-    records = memory.add([
+    records = memory.add(user_id=TEST_USER, messages=[
         {"role": "user", "content": "We had a team meeting yesterday about the roadmap"},
         {"role": "user", "content": "The server crashed last Tuesday"},
         {"role": "user", "content": "I graduated from MIT in 2020"},
@@ -55,18 +57,12 @@ def test_event_classification(memory):
 
 
 def test_entity_classification(memory):
-    """Entity info should have 'entity' in top-2 categories.
-
-    NOTE: The 'entity' anchor often loses to 'fact' or 'event' because
-    sentences like "John Smith is our project manager" look like facts
-    to an embedding model. We verify entity is at least competitive.
-    """
-    records = memory.add([
+    """Entity info should have 'entity' in top-2 categories."""
+    records = memory.add(user_id=TEST_USER, messages=[
         {"role": "user", "content": "John Smith is our project manager"},
         {"role": "user", "content": "Acme Corp is based in San Francisco"},
         {"role": "user", "content": "The Tesla Model 3 is an electric vehicle"},
     ])
-    # Check that 'entity' appears in top-2 for at least one record
     has_entity_in_top2 = False
     for r in records:
         top_k = memory.engine.classifier.get_top_k(r.embedding, k=2)
@@ -81,27 +77,22 @@ def test_entity_classification(memory):
 
 def test_custom_anchor_classification(memory):
     """Custom anchors should work for classification."""
-    memory.add_anchor("technical", "This is a technical specification or requirement")
-    records = memory.add([
+    memory.add_anchor("technical", "This is a technical specification or requirement", user_id=TEST_USER)
+    records = memory.add(user_id=TEST_USER, messages=[
         {"role": "user", "content": "The API must support TLS 1.3 encryption"},
         {"role": "user", "content": "Response latency should be under 200ms"},
     ])
     categories = [r.category for r in records]
     print(f"  Custom anchor: {categories}")
-    # At least verifies it doesn't crash; classification may vary
 
 
 def test_ambiguous_classification(memory):
     """Sentences that could fit multiple categories should still classify."""
-    records = memory.add([
-        # Could be fact or preference
+    records = memory.add(user_id=TEST_USER, messages=[
         {"role": "user", "content": "I think organic food is healthier"},
-        # Could be event or fact
         {"role": "user", "content": "Amazon acquired Whole Foods in 2017"},
-        # Could be instruction or preference
         {"role": "user", "content": "I want all code reviewed before merging"},
     ])
-    # None should be "unknown" — the threshold (0.3) should be low enough
     categories = [r.category for r in records]
     unknown_count = categories.count("unknown")
     print(f"  Ambiguous classification: {categories}")
@@ -110,11 +101,10 @@ def test_ambiguous_classification(memory):
 
 def test_very_short_input_classification(memory):
     """Very short inputs may struggle to classify."""
-    records = memory.add([
+    records = memory.add(user_id=TEST_USER, messages=[
         {"role": "user", "content": "ok"},
         {"role": "user", "content": "yes"},
         {"role": "user", "content": "no thanks"},
     ])
     categories = [r.category for r in records]
     print(f"  Short input classification: {categories}")
-    # These may be "unknown" — just verify no crash

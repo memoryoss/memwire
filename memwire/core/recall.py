@@ -32,6 +32,8 @@ class RecallEngine:
         sparse_values: Optional[np.ndarray] = None,
         user_id: Optional[str] = None,
         agent_id: Optional[str] = None,
+        app_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
     ) -> RecallResult:
         """Find relevant paths through the graph for the given query.
 
@@ -42,6 +44,9 @@ class RecallEngine:
             query_embedding, graph,
             top_k=self.config.recall_seed_top_k,
             qdrant_store=qdrant_store,
+            user_id=user_id,
+            app_id=app_id,
+            workspace_id=workspace_id,
         )
         if not seeds:
             # Still search knowledge even if no memory seeds
@@ -50,6 +55,7 @@ class RecallEngine:
                 user_id=user_id, agent_id=agent_id,
                 sparse_indices=sparse_indices,
                 sparse_values=sparse_values,
+                app_id=app_id, workspace_id=workspace_id,
             )
             return RecallResult(query=query_text, knowledge=knowledge)
 
@@ -71,6 +77,7 @@ class RecallEngine:
                 user_id=user_id, agent_id=agent_id,
                 sparse_indices=sparse_indices,
                 sparse_values=sparse_values,
+                app_id=app_id, workspace_id=workspace_id,
             )
             return RecallResult(query=query_text, knowledge=knowledge)
 
@@ -92,6 +99,7 @@ class RecallEngine:
             user_id=user_id, agent_id=agent_id,
             sparse_indices=sparse_indices,
             sparse_values=sparse_values,
+            app_id=app_id, workspace_id=workspace_id,
         )
 
         return RecallResult(
@@ -110,6 +118,8 @@ class RecallEngine:
         sparse_indices: Optional[np.ndarray] = None,
         sparse_values: Optional[np.ndarray] = None,
         top_k: int = 5,
+        app_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
     ) -> list[KnowledgeChunk]:
         """Search knowledge chunks via Qdrant hybrid search."""
         if qdrant_store is None or user_id is None:
@@ -124,6 +134,8 @@ class RecallEngine:
             user_id=user_id,
             agent_id=agent_id,
             top_k=top_k,
+            workspace_id=workspace_id,
+            app_id=app_id,
         )
 
         chunks = []

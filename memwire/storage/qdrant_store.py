@@ -48,7 +48,7 @@ class QdrantStore:
         elif config.qdrant_path:
             self._client = QdrantClient(path=config.qdrant_path)
         else:
-            path = f"qdrant_data_{config.user_id}"
+            path = f"qdrant_data_{config.org_id}"
             self._client = QdrantClient(path=path)
 
         self._ensure_collections()
@@ -135,6 +135,9 @@ class QdrantStore:
             "timestamp": record.timestamp,
             "node_ids": json.dumps(record.node_ids),
             "access_count": record.access_count,
+            "org_id": record.org_id,
+            "workspace_id": record.workspace_id or "",
+            "app_id": record.app_id or "",
         }
 
         if sparse_vectors:
@@ -159,8 +162,10 @@ class QdrantStore:
         self,
         user_id: str,
         agent_id: Optional[str] = None,
+        app_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
     ) -> list[MemoryRecord]:
-        """Load all memories for a user (optionally filtered by agent_id)."""
+        """Load all memories for a user (optionally filtered by agent_id, app_id, workspace_id)."""
         records = []
         offset = None
 
@@ -171,6 +176,14 @@ class QdrantStore:
         if agent_id is not None:
             must_conditions.append(
                 FieldCondition(key="agent_id", match=MatchValue(value=agent_id))
+            )
+        if app_id is not None:
+            must_conditions.append(
+                FieldCondition(key="app_id", match=MatchValue(value=app_id))
+            )
+        if workspace_id is not None:
+            must_conditions.append(
+                FieldCondition(key="workspace_id", match=MatchValue(value=workspace_id))
             )
 
         while True:
@@ -199,6 +212,9 @@ class QdrantStore:
                     node_ids=json.loads(payload.get("node_ids", "[]")),
                     agent_id=payload.get("agent_id") or None,
                     access_count=payload.get("access_count", 0),
+                    org_id=payload.get("org_id", ""),
+                    workspace_id=payload.get("workspace_id") or None,
+                    app_id=payload.get("app_id") or None,
                 ))
 
             if next_offset is None:
@@ -222,18 +238,43 @@ class QdrantStore:
                     "node_id_str": node.node_id,
                     "token": node.token,
                     "memory_ids": json.dumps(node.memory_ids),
+                    "user_id": node.user_id,
+                    "app_id": node.app_id or "",
+                    "workspace_id": node.workspace_id or "",
                 },
             )],
         )
 
-    def load_nodes(self) -> list[GraphNode]:
-        """Load all graph nodes."""
+    def load_nodes(
+        self,
+        *,
+        user_id: Optional[str] = None,
+        app_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
+    ) -> list[GraphNode]:
+        """Load graph nodes, optionally filtered by user/app/workspace."""
         nodes = []
         offset = None
+
+        must_conditions = []
+        if user_id is not None:
+            must_conditions.append(
+                FieldCondition(key="user_id", match=MatchValue(value=user_id))
+            )
+        if app_id is not None:
+            must_conditions.append(
+                FieldCondition(key="app_id", match=MatchValue(value=app_id))
+            )
+        if workspace_id is not None:
+            must_conditions.append(
+                FieldCondition(key="workspace_id", match=MatchValue(value=workspace_id))
+            )
+        scroll_filter = Filter(must=must_conditions) if must_conditions else None
 
         while True:
             result = self._client.scroll(
                 collection_name=self.graph_nodes_collection,
+                scroll_filter=scroll_filter,
                 limit=100,
                 offset=offset,
                 with_payload=True,
@@ -248,6 +289,9 @@ class QdrantStore:
                     token=payload["token"],
                     embedding=np.array(point.vector, dtype=np.float32),
                     memory_ids=json.loads(payload.get("memory_ids", "[]")),
+                    user_id=payload.get("user_id", ""),
+                    app_id=payload.get("app_id") or None,
+                    workspace_id=payload.get("workspace_id") or None,
                 ))
 
             if next_offset is None:
@@ -267,6 +311,8 @@ class QdrantStore:
         agent_id: Optional[str] = None,
         category: Optional[str] = None,
         top_k: int = 10,
+        workspace_id: Optional[str] = None,
+        app_id: Optional[str] = None,
     ) -> list[tuple[str, float, dict]]:
         """Hybrid search using dense + sparse with RRF fusion.
 
@@ -285,6 +331,14 @@ class QdrantStore:
         if category:
             must_conditions.append(
                 FieldCondition(key="category", match=MatchValue(value=category))
+            )
+        if workspace_id is not None:
+            must_conditions.append(
+                FieldCondition(key="workspace_id", match=MatchValue(value=workspace_id))
+            )
+        if app_id is not None:
+            must_conditions.append(
+                FieldCondition(key="app_id", match=MatchValue(value=app_id))
             )
         search_filter = Filter(must=must_conditions) if must_conditions else None
 
@@ -329,7 +383,7 @@ class QdrantStore:
                 query=dense_embedding.tolist(),
                 using="dense",
                 limit=top_k,
-                filter=search_filter,
+                query_filter=search_filter,
                 with_payload=True,
                 with_vectors=["dense"],
             )
@@ -345,16 +399,36 @@ class QdrantStore:
         self,
         embedding: np.ndarray,
         top_k: int = 5,
+        *,
+        user_id: Optional[str] = None,
+        app_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
     ) -> list[tuple[str, float]]:
         """Dense search on graph_nodes collection.
 
         Returns list of (node_id_str, score) tuples.
         """
+        must_conditions = []
+        if user_id is not None:
+            must_conditions.append(
+                FieldCondition(key="user_id", match=MatchValue(value=user_id))
+            )
+        if app_id is not None:
+            must_conditions.append(
+                FieldCondition(key="app_id", match=MatchValue(value=app_id))
+            )
+        if workspace_id is not None:
+            must_conditions.append(
+                FieldCondition(key="workspace_id", match=MatchValue(value=workspace_id))
+            )
+        search_filter = Filter(must=must_conditions) if must_conditions else None
+
         results = self._client.query_points(
             collection_name=self.graph_nodes_collection,
             query=embedding.tolist(),
             limit=top_k,
             with_payload=True,
+            query_filter=search_filter,
         )
 
         output = []
@@ -377,6 +451,8 @@ class QdrantStore:
         metadata: Optional[dict] = None,
         sparse_indices: Optional[np.ndarray] = None,
         sparse_values: Optional[np.ndarray] = None,
+        workspace_id: Optional[str] = None,
+        app_id: Optional[str] = None,
     ) -> None:
         """Upsert a knowledge chunk into the knowledge_chunks collection."""
         point_id = self._str_to_uuid(chunk_id)
@@ -397,6 +473,8 @@ class QdrantStore:
             "agent_id": agent_id or "",
             "content": content,
             "metadata": json.dumps(metadata or {}),
+            "workspace_id": workspace_id or "",
+            "app_id": app_id or "",
         }
 
         if sparse_vectors:
@@ -425,6 +503,8 @@ class QdrantStore:
         sparse_indices: Optional[np.ndarray] = None,
         sparse_values: Optional[np.ndarray] = None,
         top_k: int = 5,
+        workspace_id: Optional[str] = None,
+        app_id: Optional[str] = None,
     ) -> list[tuple[str, float, dict]]:
         """Hybrid search on knowledge_chunks collection.
 
@@ -436,6 +516,14 @@ class QdrantStore:
         if agent_id is not None:
             must_conditions.append(
                 FieldCondition(key="agent_id", match=MatchValue(value=agent_id))
+            )
+        if workspace_id is not None:
+            must_conditions.append(
+                FieldCondition(key="workspace_id", match=MatchValue(value=workspace_id))
+            )
+        if app_id is not None:
+            must_conditions.append(
+                FieldCondition(key="app_id", match=MatchValue(value=app_id))
             )
         search_filter = Filter(must=must_conditions)
 
@@ -476,7 +564,7 @@ class QdrantStore:
                 query=dense_embedding.tolist(),
                 using="dense",
                 limit=top_k,
-                filter=search_filter,
+                query_filter=search_filter,
                 with_payload=True,
             )
 
