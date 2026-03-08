@@ -3,12 +3,12 @@
 from collections import OrderedDict
 
 import numpy as np
-from fastembed import TextEmbedding, SparseTextEmbedding
 
 from ..config import MemWireConfig
 from ..utils.types import TokenEmbedding
 from ..utils.math_ops import displacement_vector, normalize
 from ..utils.tokenizer import Tokenizer
+from .providers import create_provider
 
 
 class EmbeddingEngine:
@@ -16,50 +16,45 @@ class EmbeddingEngine:
 
     def __init__(self, config: MemWireConfig):
         self.config = config
-        self.model = TextEmbedding(config.model_name)
+        self._provider = create_provider(config)
         self.tokenizer = Tokenizer()
         self._cache: OrderedDict[str, np.ndarray] = OrderedDict()
+        self._sparse_model = None  # lazy-loaded, FastEmbed only
 
-        # Sparse model (lazy-loaded on first use)
-        self._sparse_model = None
-
-    def _get_sparse_model(self) -> SparseTextEmbedding:
+    def _get_sparse_model(self):
         if self._sparse_model is None:
+            from fastembed import SparseTextEmbedding
             self._sparse_model = SparseTextEmbedding(self.config.sparse_model_name)
         return self._sparse_model
 
     def _cache_put(self, key: str, value: np.ndarray) -> None:
-        """Insert into cache with LRU eviction."""
         self._cache[key] = value
         if len(self._cache) > self.config.embedding_cache_maxsize:
-            self._cache.popitem(last=False)  # evict oldest
+            self._cache.popitem(last=False)
 
     def embed_sentence(self, text: str) -> np.ndarray:
         """Embed a full sentence, returns normalized vector."""
         if text in self._cache:
             return self._cache[text]
-        embedding = list(self.model.embed([text]))[0]
-        embedding = normalize(np.array(embedding, dtype=np.float32))
+        embedding = self._provider.embed([text])[0]
         self._cache_put(text, embedding)
         return embedding
 
     def embed_tokens(self, text: str) -> list[TokenEmbedding]:
-        """Embed each token both in isolation and in context, compute displacement."""
+        """Embed each token in isolation and in context, compute displacement."""
         result = self.tokenizer.tokenize(text)
         if not result.tokens:
             return []
 
-        # Get contextual embedding for the full sentence
         contextual_sentence = self.embed_sentence(text)
 
-        # Batch ALL token isolated embeddings in one call
+        # batch embed uncached tokens
         uncached_tokens = [t for t in result.tokens if t not in self._cache]
         if uncached_tokens:
-            embeddings = list(self.model.embed(uncached_tokens))
+            embeddings = self._provider.embed(uncached_tokens)
             for token, emb in zip(uncached_tokens, embeddings):
-                self._cache_put(token, normalize(np.array(emb, dtype=np.float32)))
+                self._cache_put(token, emb)
 
-        # Build token embeddings with displacement
         token_embeddings = []
         for i, token in enumerate(result.tokens):
             isolated = self._cache[token]
@@ -83,9 +78,9 @@ class EmbeddingEngine:
         """Embed multiple sentences efficiently."""
         uncached = [t for t in texts if t not in self._cache]
         if uncached:
-            embeddings = list(self.model.embed(uncached))
+            embeddings = self._provider.embed(uncached)
             for text, emb in zip(uncached, embeddings):
-                self._cache_put(text, normalize(np.array(emb, dtype=np.float32)))
+                self._cache_put(text, emb)
         return [self._cache[t] for t in texts]
 
     def embed_sparse(self, text: str) -> tuple[np.ndarray, np.ndarray]:
@@ -95,5 +90,4 @@ class EmbeddingEngine:
         return result.indices, result.values
 
     def clear_cache(self):
-        """Clear the embedding cache."""
         self._cache.clear()

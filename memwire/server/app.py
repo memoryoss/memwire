@@ -28,6 +28,17 @@ def _build_config() -> MemWireConfig:
         kwargs["org_id"] = os.getenv("MEMWIRE_ORG_ID")
     if os.getenv("MEMWIRE_COLLECTION_PREFIX"):
         kwargs["qdrant_collection_prefix"] = os.getenv("MEMWIRE_COLLECTION_PREFIX")
+    # embedding provider config
+    if os.getenv("EMBEDDING_PROVIDER"):
+        kwargs["embedding_provider"] = os.getenv("EMBEDDING_PROVIDER")
+    if os.getenv("EMBEDDING_API_URL"):
+        kwargs["embedding_api_url"] = os.getenv("EMBEDDING_API_URL")
+    if os.getenv("EMBEDDING_API_KEY"):
+        kwargs["embedding_api_key"] = os.getenv("EMBEDDING_API_KEY")
+    if os.getenv("EMBEDDING_MODEL"):
+        kwargs["embedding_model"] = os.getenv("EMBEDDING_MODEL")
+    if os.getenv("EMBEDDING_DIM"):
+        kwargs["embedding_dim"] = int(os.getenv("EMBEDDING_DIM"))
     return MemWireConfig(**kwargs)
 
 
