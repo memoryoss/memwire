@@ -1,0 +1,37 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  memwire:
+    container_name: memwire
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    environment:
+      - QDRANT_URL=http://qdrant:6333
+      - DATABASE_URL=sqlite:////data/memwire.db
+      - MEMWIRE_API_KEYS=${MEMWIRE_API_KEYS:-}
+      - MEMWIRE_ORG_ID=${MEMWIRE_ORG_ID:-default}
+    volumes:
+      - memwire_data:/data
+    restart: unless-stopped
+
+volumes:
+  qdrant_storage:
+  memwire_data:

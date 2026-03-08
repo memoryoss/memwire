@@ -1,6 +1,7 @@
 """MemWire — the explicit user-facing API."""
 
 import logging
+import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
@@ -23,8 +24,7 @@ class MemWire:
     """Explicit API for vector-based memory. No automatic LLM interception.
 
     A single MemWire instance can serve an entire organization.
-    User isolation is enforced at query time via per-user graph caches
-    and hierarchy filters (org > workspace > app > user).
+    User isolation via per-user graph caches, memory dicts, and hierarchy filters.
     """
 
     def __init__(
@@ -33,29 +33,20 @@ class MemWire:
     ):
         self.config = config or MemWireConfig()
 
-        # Qdrant store (always required)
         self.qdrant_store = QdrantStore(self.config)
-
-        # Core components (shared across users)
         self.engine = MemoryEngine(self.config, qdrant_store=self.qdrant_store)
         self.recall_engine = RecallEngine(self.config)
         self.feedback_processor = FeedbackProcessor(self.config)
         self.formatter = MemoryFormatter()
-
-        # SQLite storage (metadata ledger — edges, anchors, KB metadata)
         self.db = DatabaseManager(self.config)
-
-        # Reranker (lazy-loaded if enabled)
         self._reranker = None
-
-        # Background processing
         self._executor = ThreadPoolExecutor(max_workers=self.config.background_threads)
 
-        # Per-user graph cache: "user_id:app_id:workspace_id" -> DisplacementGraph
-        self._graphs: dict[str, DisplacementGraph] = {}
-
-        # Per-user last recall result (for feedback): same key as _graphs
-        self._last_recalls: dict[str, RecallResult] = {}
+        self._graphs: dict[str, DisplacementGraph] = {}  # per-user graph cache
+        self._memories: dict[str, dict[str, MemoryRecord]] = {}  # per-user memory cache
+        self._memory_nodes: dict[str, dict[str, list[str]]] = {}  # per-user node map
+        self._last_recalls: dict[str, RecallResult] = {}  # per-user last recall
+        self._lock = threading.Lock()  # guards cache init
 
     def _graph_key(self, user_id: str, app_id: Optional[str] = None, workspace_id: Optional[str] = None) -> str:
         return f"{user_id}:{app_id or ''}:{workspace_id or ''}"
@@ -63,15 +54,32 @@ class MemWire:
     def _get_graph(self, user_id: str, app_id: Optional[str] = None, workspace_id: Optional[str] = None) -> DisplacementGraph:
         """Lazy per-user graph loading."""
         key = self._graph_key(user_id, app_id, workspace_id)
-        if key not in self._graphs:
-            nodes = self.qdrant_store.load_nodes(
-                user_id=user_id, app_id=app_id, workspace_id=workspace_id,
-            )
-            edges = self.db.load_edges(user_id=user_id)
-            graph = rebuild_graph_from_db(nodes, edges, self.config)
-            graph.qdrant_store = self.qdrant_store
-            self._graphs[key] = graph
-        return self._graphs[key]
+        with self._lock:
+            if key not in self._graphs:
+                nodes = self.qdrant_store.load_nodes(
+                    user_id=user_id, app_id=app_id, workspace_id=workspace_id,
+                )
+                edges = self.db.load_edges(user_id=user_id)
+                graph = rebuild_graph_from_db(nodes, edges, self.config)
+                graph.qdrant_store = self.qdrant_store
+                self._graphs[key] = graph
+            return self._graphs[key]
+
+    def _get_user_memories(self, user_id: str, app_id: Optional[str] = None, workspace_id: Optional[str] = None) -> dict[str, MemoryRecord]:
+        """Get or create per-user memory dict."""
+        key = self._graph_key(user_id, app_id, workspace_id)
+        with self._lock:
+            if key not in self._memories:
+                self._memories[key] = {}
+            return self._memories[key]
+
+    def _get_user_memory_nodes(self, user_id: str, app_id: Optional[str] = None, workspace_id: Optional[str] = None) -> dict[str, list[str]]:
+        """Get or create per-user memory_id -> node_ids map."""
+        key = self._graph_key(user_id, app_id, workspace_id)
+        with self._lock:
+            if key not in self._memory_nodes:
+                self._memory_nodes[key] = {}
+            return self._memory_nodes[key]
 
     def _get_reranker(self):
         if self._reranker is None:
@@ -102,36 +110,31 @@ class MemWire:
         """Add memories from message dicts. Each must have 'role' and 'content'."""
         org_id = self.config.org_id
         graph = self._get_graph(user_id, app_id, workspace_id)
-
-        # Temporarily swap the engine's graph to the user-scoped one
-        original_graph = self.engine.graph
-        self.engine.graph = graph
+        user_memories = self._get_user_memories(user_id, app_id, workspace_id)
+        user_nodes = self._get_user_memory_nodes(user_id, app_id, workspace_id)
 
         records = []
-        try:
-            for msg in messages:
-                content = msg.get("content", "")
-                role = msg.get("role", "user")
-                if not content.strip():
-                    continue
-                record = self.engine.add_memory(
-                    content, role=role, user_id=user_id, agent_id=agent_id,
-                    org_id=org_id, app_id=app_id, workspace_id=workspace_id,
-                )
-                records.append(record)
+        for msg in messages:
+            content = msg.get("content", "")
+            role = msg.get("role", "user")
+            if not content.strip():
+                continue
+            record = self.engine.add_memory(
+                content, role=role, user_id=user_id, agent_id=agent_id,
+                org_id=org_id, app_id=app_id, workspace_id=workspace_id,
+                graph=graph, memory_nodes=user_nodes,
+            )
+            user_memories[record.memory_id] = record
+            records.append(record)
 
-                # Compute sparse embedding for Qdrant
-                sparse_data = None
-                try:
-                    indices, values = self.engine.embeddings.embed_sparse(content)
-                    sparse_data = (indices, values)
-                except Exception as e:
-                    logger.warning("Sparse embedding failed: %s", e)
+            sparse_data = None
+            try:
+                indices, values = self.engine.embeddings.embed_sparse(content)
+                sparse_data = (indices, values)
+            except Exception as e:
+                logger.warning("Sparse embedding failed: %s", e)
 
-                # Persist asynchronously
-                self._submit_bg(self._persist_memory, record, sparse_data, graph)
-        finally:
-            self.engine.graph = original_graph
+            self._submit_bg(self._persist_memory, record, sparse_data, graph)
 
         return records
 
@@ -146,9 +149,9 @@ class MemWire:
     ) -> RecallResult:
         """Recall relevant memory paths for a query."""
         graph = self._get_graph(user_id, app_id, workspace_id)
+        user_memories = self._get_user_memories(user_id, app_id, workspace_id)
         query_embedding = self.engine.embeddings.embed_sentence(query)
 
-        # Compute sparse embedding for knowledge search
         sparse_indices = None
         sparse_values = None
         try:
@@ -159,7 +162,7 @@ class MemWire:
         result = self.recall_engine.recall(
             query_embedding=query_embedding,
             graph=graph,
-            memories=self.engine._memories,
+            memories=user_memories,
             query_text=query,
             qdrant_store=self.qdrant_store,
             sparse_indices=sparse_indices,
@@ -212,9 +215,9 @@ class MemWire:
         top_k: int = 10,
     ) -> list[tuple[MemoryRecord, float]]:
         """Search memories by similarity, optionally filtered by category."""
+        user_memories = self._get_user_memories(user_id, app_id, workspace_id)
         query_embedding = self.engine.embeddings.embed_sentence(query)
 
-        # Compute sparse embedding for hybrid search
         sparse_indices = None
         sparse_values = None
         try:
@@ -224,7 +227,7 @@ class MemWire:
 
         results = find_similar_memories(
             query_embedding,
-            self.engine.get_all_memories(),
+            list(user_memories.values()),
             top_k=top_k * 2 if self.config.use_reranking else top_k,
             category=category,
             qdrant_store=self.qdrant_store,
@@ -232,7 +235,7 @@ class MemWire:
             sparse_values=sparse_values,
             user_id=user_id,
             agent_id=agent_id,
-            memory_dict=self.engine._memories,
+            memory_dict=user_memories,
             workspace_id=workspace_id,
             app_id=app_id,
         )
@@ -373,10 +376,11 @@ class MemWire:
     ) -> dict:
         """Return statistics about the memory system."""
         graph = self._get_graph(user_id, app_id, workspace_id)
+        user_memories = self._get_user_memories(user_id, app_id, workspace_id)
         kbs = self.db.load_knowledge_bases(user_id, agent_id,
                                            workspace_id=workspace_id, app_id=app_id)
         return {
-            "memories": len(self.engine._memories),
+            "memories": len(user_memories),
             "nodes": len(graph.nodes),
             "edges": len(graph.edges),
             "anchors": list(self.engine.classifier.get_anchors().keys()),

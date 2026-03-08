@@ -150,19 +150,17 @@ class DatabaseManager:
             session.commit()
 
     def save_edges_batch(self, edges: list[GraphEdge]) -> None:
-        from sqlalchemy import text
+        """Batch-save edges using ORM merge (works with any SQL backend)."""
         with self._session() as session:
             for edge in edges:
-                session.execute(
-                    text(
-                        "INSERT OR REPLACE INTO edges "
-                        "(source_id, target_id, weight, displacement_sim, user_id) "
-                        "VALUES (:src, :tgt, :w, :ds, :uid)"
-                    ),
-                    {"src": edge.source_id, "tgt": edge.target_id,
-                     "w": edge.weight, "ds": edge.displacement_sim,
-                     "uid": edge.user_id},
+                model = EdgeModel(
+                    source_id=edge.source_id,
+                    target_id=edge.target_id,
+                    weight=edge.weight,
+                    displacement_sim=edge.displacement_sim,
+                    user_id=edge.user_id,
                 )
+                session.merge(model)
             session.commit()
 
     def load_edges(self, user_id: Optional[str] = None) -> list[GraphEdge]:
