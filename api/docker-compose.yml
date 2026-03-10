@@ -8,19 +8,20 @@ services:
       - qdrant_storage:/qdrant/storage
     restart: unless-stopped
 
-  memwire:
-    container_name: memwire
+  memwire-api:
+    container_name: memwire-api
     build:
       context: ..
-      dockerfile: examples/Dockerfile
+      dockerfile: api/Dockerfile
     ports:
       - "8000:8000"
     depends_on:
       - qdrant
-    env_file:
-      - .env
     environment:
       - QDRANT_URL=http://qdrant:6333
+      - DATABASE_URL=sqlite:////data/memwire.db
+      - ORG_ID=default
+      - QDRANT_COLLECTION_PREFIX=mw_
     volumes:
       - memwire_data:/data
     restart: unless-stopped

@@ -12,6 +12,10 @@ icon: 'magnifying-glass'
 |---|---|---|---|
 | `user_id` | string | ✅ | User to search memories for |
 | `query` | string | ✅ | Search query |
+| `app_id` | string | | Filter to a specific application |
+| `workspace_id` | string | | Filter to a specific workspace or team |
+| `agent_id` | string | | Filter to a specific agent |
+| `category` | string | | Filter by memory category (e.g. `preference`, `fact`, `instruction`) |
 | `top_k` | integer | | Number of results to return (default: `10`) |
 
 ### Example
@@ -21,6 +25,8 @@ curl -X POST http://localhost:8000/v1/memory/search \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "alice",
+    "app_id": "app_a",
+    "workspace_id": "team_1",
     "query": "dark mode",
     "top_k": 10
   }'
@@ -40,5 +46,3 @@ curl -X POST http://localhost:8000/v1/memory/search \
   ]
 }
 ```
----
----

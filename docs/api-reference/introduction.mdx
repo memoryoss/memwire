@@ -7,10 +7,13 @@ icon: 'terminal'
 Start the MemWire server:
 
 ```bash
-docker compose -f examples/docker-compose.yml up -d   # Qdrant + MemWire on :8000
+cd api
+docker compose up --build -d   # Qdrant + MemWire on :8000
 ```
 
 Base URL: `http://localhost:8000`
+
+Interactive docs: **http://localhost:8000/docs**
 
 ---
 
@@ -23,7 +26,8 @@ curl -X POST http://localhost:8000/v1/memory \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "alice",
-    "agent_id": "support-bot",
+    "app_id": "app_a",
+    "workspace_id": "team_1",
     "messages": [
       { "role": "user", "content": "I prefer dark mode and short answers." }
     ]
@@ -48,7 +52,8 @@ curl -X POST http://localhost:8000/v1/memory/recall \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "alice",
-    "agent_id": "support-bot",
+    "app_id": "app_a",
+    "workspace_id": "team_1",
     "query": "How should I format my answers?",
     "top_k": 5
   }'
