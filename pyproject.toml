@@ -6,6 +6,8 @@ build-backend = "setuptools.build_meta"
 name = "memwire"
 version = "0.2.0"
 description = "Enterprise-grade memory infrastructure for AI agents"
+license = {text = "Apache-2.0"}
+classifiers = ["License :: OSI Approved :: Apache Software License"]
 requires-python = ">=3.10"
 dependencies = [
     "numpy>=1.24.0",
