@@ -1,22 +1,3 @@
----
-title: "Quickstart"
-description: "Add persistent memory to your AI agent in minutes"
-icon: "rocket"
----
-
-## Install
-
-```bash
-pip install memwire
-```
-
----
-
-## Embedded mode
-
-Data is stored on disk in `./memwire_data/`.
-
-```python
 from memwire import MemWire, MemWireConfig
 
 config = MemWireConfig(
@@ -65,32 +46,3 @@ print(stats)  # {"memories": 1, "nodes": ..., "edges": ..., "knowledge_bases": 0
 
 # Always close to flush background writes
 memory.close()
-```
-
----
-
-## With a local Qdrant server
-
-```bash
-docker run -p 6333:6333 qdrant/qdrant
-```
-
-```python
-config = MemWireConfig(
-    qdrant_url="http://localhost:6333",
-    qdrant_collection_prefix="app_",
-)
-memory = MemWire(config=config)
-```
-
-
-
----
-
-## Next steps
-
-<CardGroup cols={1}>
-  <Card title="API reference" icon="terminal" href="/api-reference/introduction">
-    Explore the REST endpoints for store, recall, and search.
-  </Card>
-</CardGroup>

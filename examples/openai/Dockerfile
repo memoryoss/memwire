@@ -2,19 +2,21 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install only the essentials
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Python deps first (layer cache)
-COPY requirements.txt .
+COPY examples/openai/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY pyproject.toml alembic.ini ./
+# Copy and install memwire from local source
+COPY pyproject.toml ./
 COPY memwire/ memwire/
-COPY examples/web_chat.py examples/chat.py ./
+RUN pip install --no-cache-dir .
+
+# Copy application code
+COPY examples/openai/web_chat.py ./
 
 # Data directory for SQLite metadata
 RUN mkdir -p /data

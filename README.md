@@ -44,19 +44,23 @@ Data is stored on disk in `./memwire_data/`.
 from memwire import MemWire, MemWireConfig
 
 config = MemWireConfig(
-    qdrant_path="./memwire_data",          # local vector store
-    database_url="sqlite:///memory.db",    # metadata ledger
+    qdrant_path="./memwire_data",  # local vector store
     qdrant_collection_prefix="app_",
 )
-memory = MemWire(user_id="alice", config=config)
+memory = MemWire(config=config)
+
+USER_ID = "alice"
 
 # Add messages to memory
-memory.add([
-    {"role": "user", "content": "I prefer dark mode and short answers."}
-])
+records = memory.add(
+    user_id=USER_ID,
+    messages=[{"role": "user", "content": "I prefer dark mode and short answers."}],
+)
+for r in records:
+    print(f"[stored] ({r.category}) {r.content}")
 
 # Recall relevant context for a query
-result = memory.recall("How should I format my answers?")
+result = memory.recall("How should I format my answers?", user_id=USER_ID)
 if result.formatted:
     print(result.formatted)
     # → "alice prefers dark mode and short answers."
@@ -66,19 +70,21 @@ messages = [
     {"role": "system", "content": "You are a helpful assistant."},
 ]
 if result.formatted:
-    messages.append({"role": "system", "content": f"Memory context:\n{result.formatted}"})
+    messages.append(
+        {"role": "system", "content": f"Memory context:\n{result.formatted}"}
+    )
 messages.append({"role": "user", "content": "How should I format my answers?"})
 
 # After you get the LLM response, reinforce the memory paths that were used
-memory.feedback(response="<assistant response here>")
+memory.feedback(response="<assistant response here>", user_id=USER_ID)
 
 # Search memories by keyword / semantic similarity
-hits = memory.search("dark mode", top_k=5)
+hits = memory.search("dark mode", user_id=USER_ID, top_k=5)
 for record, score in hits:
     print(f"[{score:.2f}] ({record.category}) {record.content}")
 
 # Inspect stats
-stats = memory.get_stats()
+stats = memory.get_stats(user_id=USER_ID)
 print(stats)  # {"memories": 1, "nodes": ..., "edges": ..., "knowledge_bases": 0}
 
 # Always close to flush background writes
@@ -96,21 +102,25 @@ docker run -p 6333:6333 qdrant/qdrant
 ```python
 config = MemWireConfig(
     qdrant_url="http://localhost:6333",
-    database_url="sqlite:///memory.db",
     qdrant_collection_prefix="app_",
 )
-memory = MemWire(user_id="alice", config=config)
+memory = MemWire(config=config)
 ```
 
 ---
 
 ### REST API
 
-Start the server:
+The `api/` folder provides a self-hosted REST API backed by FastAPI and Qdrant.
+
+#### Start the server
 
 ```bash
-docker compose -f examples/docker-compose.yml up -d   # Qdrant + MemWire on :8000
+cd api
+docker compose up --build   # Qdrant + MemWire API on :8000
 ```
+
+Interactive docs: **http://localhost:8000/docs**
 
 ---
 
@@ -120,8 +130,8 @@ docker compose -f examples/docker-compose.yml up -d   # Qdrant + MemWire on :800
 curl -X POST http://localhost:8000/v1/memory \
   -H "Content-Type: application/json" \
   -d '{
-    "app_id": "app_a",
     "user_id": "alice",
+    "app_id": "app_a",
     "workspace_id": "team_1",
     "messages": [
       { "role": "user", "content": "I prefer dark mode and short answers." }
@@ -138,17 +148,16 @@ curl -X POST http://localhost:8000/v1/memory \
 
 ---
 
-#### Retrieve (recall) context
+#### Recall context
 
 ```bash
 curl -X POST http://localhost:8000/v1/memory/recall \
   -H "Content-Type: application/json" \
   -d '{
-    "app_id": "app_a",
     "user_id": "alice",
+    "app_id": "app_a",
     "workspace_id": "team_1",
-    "query": "How should I format my answers?",
-    "top_k": 5
+    "query": "How should I format my answers?"
   }'
 ```
 
@@ -168,8 +177,8 @@ curl -X POST http://localhost:8000/v1/memory/recall \
 curl -X POST http://localhost:8000/v1/memory/search \
   -H "Content-Type: application/json" \
   -d '{
-    "app_id": "app_a",
     "user_id": "alice",
+    "app_id": "app_a",
     "workspace_id": "team_1",
     "query": "dark mode",
     "top_k": 10
@@ -189,29 +198,50 @@ curl -X POST http://localhost:8000/v1/memory/search \
 }
 ```
 
+See [api/README.md](api/README.md) for configuration options and local development setup.
+
 ## Customization
 
-MemWire is designed to be a building block, not a black box. Everything is tunable via `MemWireConfig`:
+MemWire is designed to be a building block. Everything is tunable via `MemWireConfig`:
 
 ```python
 config = MemWireConfig(
-    # Swap the embedding model entirely
-    model_name="BAAI/bge-small-en-v1.5",
+    # --- Embedding ---
+    model_name="BAAI/bge-small-en-v1.5",   # swap the dense embedding model
+    embedding_dim=384,
+
+    # --- Storage ---
+    org_id="my_org",                        # organisation identifier (multi-tenant)
+    database_url="sqlite:///memory.db",     # SQLAlchemy URL; defaults to sqlite:///memwire_<org_id>.db
 
     # Use Qdrant Cloud instead of local
     qdrant_url="https://your-cluster.qdrant.io",
     qdrant_api_key="...",
+    qdrant_collection_prefix="myapp_",
 
-    # Enable reranking for higher precision
-    use_reranking=True,
+    # --- Search quality ---
+    use_hybrid_search=True,     # dense + sparse (SPLADE) retrieval
+    use_reranking=True,         # cross-encoder reranking for higher precision
     reranker_model_name="Xenova/ms-marco-MiniLM-L-6-v2",
 
-    # Tune memory sensitivity
-    recall_min_relevance=0.3,   # raise to be more selective
-    tension_threshold=0.7,       # lower to catch contradictions earlier
-    recency_halflife=7200.0,     # how fast old memories decay
+    # --- Recall tuning ---
+    recall_min_relevance=0.3,   # raise to be more selective (default 0.25)
+    recall_max_paths=10,        # max memory paths returned
+    recall_max_depth=4,         # BFS depth in the displacement graph
+    tension_threshold=0.6,      # lower to catch contradictions earlier
+    recency_weight=0.3,         # how much recency boosts recall score
+    recency_halflife=7200.0,    # seconds before a memory's recency score halves
 
-    # Add your own memory categories
+    # --- Graph construction ---
+    displacement_threshold=0.15,   # minimum displacement to create a graph edge
+    node_merge_similarity=0.85,    # cosine threshold for deduplicating nodes
+
+    # --- Feedback loop ---
+    feedback_strengthen_rate=0.1,  # how much a good response reinforces edges
+    feedback_weaken_rate=0.05,     # how much unused edges decay
+
+    # --- Memory classification ---
+    # Extend or replace the built-in categories (fact, preference, instruction, event, entity)
     default_anchors={
         "product_feedback": ["The user complained about X", "They liked feature Y"],
         "tone": ["Always respond formally", "Use emojis"],
@@ -224,6 +254,17 @@ config = MemWireConfig(
 | Storage | Type | Status | Notes |
 |---|---|---|---|
 | [Qdrant](https://qdrant.tech) | Vector store | ✅ Supported | Embedded, local server, or Qdrant Cloud |
+
+
+## Supported LLMs
+
+MemWire is model-agnostic. Memory operations like storage, recall, and search work with any language model or provider.
+
+| Provider | Example |
+|---|---|
+| OpenAI | [examples/openai/](examples/openai/) |
+| Azure OpenAI | [examples/azure-openai/](examples/azure-openai/) |
+| Anthropic, Gemini, Ollama, or any other | Pass the recalled context into any LLM |
 
 
 ## Roadmap

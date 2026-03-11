@@ -11,8 +11,10 @@ icon: 'database'
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `user_id` | string | ✅ | User to store memory for |
-| `agent_id` | string | | Namespace memories per agent |
 | `messages` | array | ✅ | List of `{role, content}` message objects |
+| `app_id` | string | | Namespace memories per application |
+| `workspace_id` | string | | Namespace memories per workspace or team |
+| `agent_id` | string | | Namespace memories per agent |
 
 ### Example
 
@@ -21,7 +23,8 @@ curl -X POST http://localhost:8000/v1/memory \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "alice",
-    "agent_id": "support-bot",
+    "app_id": "app_a",
+    "workspace_id": "team_1",
     "messages": [
       { "role": "user", "content": "I prefer dark mode and short answers." }
     ]

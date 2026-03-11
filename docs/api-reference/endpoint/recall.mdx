@@ -11,8 +11,10 @@ icon: 'brain'
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `user_id` | string | ✅ | User to recall memory for |
-| `agent_id` | string | | Filter to a specific agent |
 | `query` | string | ✅ | The query to find relevant memories for |
+| `app_id` | string | | Filter to a specific application |
+| `workspace_id` | string | | Filter to a specific workspace or team |
+| `agent_id` | string | | Filter to a specific agent |
 | `top_k` | integer | | Max number of memory paths (default: `5`) |
 
 ### Example
@@ -22,6 +24,8 @@ curl -X POST http://localhost:8000/v1/memory/recall \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "alice",
+    "app_id": "app_a",
+    "workspace_id": "team_1",
     "query": "How should I format my answers?",
     "top_k": 5
   }'
@@ -36,5 +40,3 @@ curl -X POST http://localhost:8000/v1/memory/recall \
   "knowledge": []
 }
 ```
----
----
