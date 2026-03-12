@@ -1,0 +1,77 @@
+---
+title: "Qdrant"
+description: "Configure MemWire with Qdrant — embedded mode, local Docker server, or Qdrant Cloud."
+---
+
+[Qdrant](https://qdrant.tech) is the default vector store for MemWire. Three deployment options are supported: embedded (no server), local Docker, or managed Qdrant Cloud.
+
+---
+
+## Embedded mode
+
+The simplest option. Qdrant runs in-process and stores data in a local directory. No Docker or external service required.
+
+```python
+from memwire import MemWire, MemWireConfig
+
+config = MemWireConfig(
+    qdrant_path="./memwire_data",       # directory to store vector data
+    qdrant_collection_prefix="app_",   # optional prefix for collection names
+)
+memory = MemWire(config=config)
+```
+
+<Tip>
+  Use `qdrant_path=":memory:"` in tests for a fast in-memory store that resets between runs.
+</Tip>
+
+---
+
+## Local Docker server
+
+Run Qdrant as a container and connect over HTTP.
+
+```bash
+docker run -p 6333:6333 -p 6334:6334 qdrant/qdrant
+```
+
+```python
+config = MemWireConfig(
+    qdrant_url="http://localhost:6333",
+    qdrant_collection_prefix="app_",
+)
+memory = MemWire(config=config)
+```
+
+Or spin up Qdrant alongside the MemWire REST API using the provided `docker-compose.yml`:
+
+```bash
+cd api
+docker compose up
+```
+
+---
+
+## Qdrant Cloud
+
+Sign up at [cloud.qdrant.io](https://cloud.qdrant.io), create a cluster, and copy your cluster URL and API key.
+
+```python
+config = MemWireConfig(
+    qdrant_url="https://<cluster-id>.us-east4-0.gcp.cloud.qdrant.io",
+    qdrant_api_key="your-qdrant-api-key",
+    qdrant_collection_prefix="prod_",
+)
+memory = MemWire(config=config)
+```
+
+---
+
+## Configuration reference
+
+| Parameter | Default | Description |
+|---|---|---|
+| `qdrant_url` | `None` | Qdrant server URL. Omit to use embedded mode. |
+| `qdrant_api_key` | `None` | API key for Qdrant Cloud. Not required for local servers. |
+| `qdrant_path` | `None` | Local directory for embedded storage. Use `":memory:"` for tests. |
+| `qdrant_collection_prefix` | `""` | Prefix applied to all collection names. Useful for multi-tenant isolation. |

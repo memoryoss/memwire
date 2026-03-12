@@ -11,13 +11,44 @@
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Open Source",
         "groups": [
           {
             "group": "Getting started",
             "pages": [
               "index",
               "quickstart"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration",
+              {
+                "group": "Vector Databases",
+                "icon": "hard-drive",
+                "pages": [
+                  "vector-databases",
+                  "vector-databases/qdrant"
+                ]
+              },
+              {
+                "group": "Embedding Models",
+                "icon": "cube",
+                "pages": [
+                  "embedders",
+                  "embedders/fastembed"
+                ]
+              },
+              {
+                "group": "LLMs",
+                "icon": "message-bot",
+                "pages": [
+                  "llms",
+                  "llms/openai",
+                  "llms/azure-openai"
+                ]
+              }
             ]
           }
         ]
@@ -81,6 +112,11 @@
      "cursor",
      "vscode"
    ]
+  },
+  "feedback": {
+    "suggestEdit": true,
+    "raiseIssue": true,
+    "thumbsRating": true
   },
   "footer": {
     "socials": {

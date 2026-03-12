@@ -2,7 +2,7 @@
 
 Documentation for [MemWire](https://github.com/memoryoss/memwire) — enterprise-grade, self-hosted AI memory infrastructure layer.
 
-Built with [Mintlify](https://mintlify.com). Live at [memwire.mintlify.app](https://memwire.mintlify.app).
+Built with [Mintlify](https://mintlify.com). Live at [memwirelabs.ai](https://memwirelabs.ai).
 
 ## Structure
 

@@ -147,7 +147,7 @@ If you discover a security vulnerability:
 **Do not open a public issue.**
 
 Instead, email:
-security@memwire.dev
+hi@memwirelabs.com
 
 ---
 

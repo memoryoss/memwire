@@ -1,0 +1,43 @@
+---
+title: "Overview"
+description: "MemWire is model-agnostic. Use recalled memory context with any LLM provider."
+---
+
+MemWire never calls an LLM internally. Memory storage, recall, and search are pure vector operations. You choose the LLM and MemWire supplies the context to inject into it.
+
+```python
+result = memory.recall("How should I format my answers?", user_id="alice")
+
+# Inject into any LLM prompt
+messages = [
+    {"role": "system", "content": "You are a helpful assistant."},
+]
+if result.formatted:
+    messages.append({"role": "system", "content": f"Memory context:\n{result.formatted}"})
+messages.append({"role": "user", "content": "How should I format my answers?"})
+```
+
+## Supported providers
+
+<CardGroup cols={2}>
+  <Card title="OpenAI" icon="sparkles" href="/llms/openai">
+    GPT-4o, GPT-4 Turbo, GPT-3.5 Turbo
+  </Card>
+  <Card title="Azure OpenAI" icon="microsoft" href="/llms/azure-openai">
+    GPT-4o, GPT-4 Turbo deployed on Azure
+  </Card>
+  <Card title="Anthropic" icon="a">
+    Claude 3.5 Sonnet, Claude 3 Opus, Claude 3 Haiku — coming soon
+  </Card>
+  <Card title="Ollama" icon="box">
+    Llama 3, Mistral, Gemma and any locally hosted model — coming soon
+  </Card>
+  <Card title="Google Gemini" icon="google">
+    Gemini 2.0 Flash, Gemini 1.5 Pro — coming soon
+  </Card>
+  <Card title="Any OpenAI-compatible API" icon="plug">
+    Together AI, Groq, Mistral, DeepSeek — coming soon
+  </Card>
+</CardGroup>
+
+---

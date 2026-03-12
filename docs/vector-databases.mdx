@@ -1,0 +1,24 @@
+---
+title: "Overview"
+description: "Connect MemWire to a vector store."
+---
+
+MemWire stores memories as vector embeddings and requires a vector store for retrieval. Configure the vector store via `MemWireConfig`.
+
+```python
+from memwire import MemWire, MemWireConfig
+
+config = MemWireConfig(
+    qdrant_url="http://localhost:6333",  # or qdrant_path for embedded mode
+    qdrant_collection_prefix="app_",
+)
+memory = MemWire(config=config)
+```
+
+## Supported databases
+
+<CardGroup cols={2}>
+  <Card title="Qdrant" icon="database" href="/vector-databases/qdrant">
+    Embedded file mode, local Docker server, or managed Qdrant Cloud.
+  </Card>
+</CardGroup>

@@ -1,0 +1,125 @@
+---
+title: "Overview"
+description: "Choose from the supported embedding backends and models."
+---
+
+MemWire generates vector embeddings to store and retrieve memories.
+
+Configure the embedding model via `MemWireConfig`:
+
+```python
+from memwire import MemWire, MemWireConfig
+
+config = MemWireConfig(
+    model_name="sentence-transformers/all-MiniLM-L6-v2",
+    embedding_dim=384,
+)
+memory = MemWire(config=config)
+```
+
+## Supported embedding backends
+
+<CardGroup cols={2}>
+  <Card title="FastEmbed" icon="bolt" href="/embedders/fastembed">
+    Local on-device embeddings via Qdrant's FastEmbed library. Supports dense and sparse models. Recommended default.
+  </Card>
+</CardGroup>
+
+
+Two model types are used:
+
+| Type | Purpose |
+|---|---|
+| **Dense model** | Semantic similarity — powers memory search and recall |
+| **Sparse model** | Keyword matching — used alongside dense vectors in hybrid search |
+
+---
+
+## Default models
+
+```python
+from memwire import MemWire, MemWireConfig
+
+# These are the defaults — no config needed unless you want to change them
+config = MemWireConfig(
+    model_name="sentence-transformers/all-MiniLM-L6-v2",
+    embedding_dim=384,
+    sparse_model_name="prithivida/Splade_PP_en_v1",
+)
+memory = MemWire(config=config)
+```
+
+| Model | Type | Dimensions | Notes |
+|---|---|---|---|
+| `sentence-transformers/all-MiniLM-L6-v2` | Dense | 384 | Fast, multilingual-friendly, good general-purpose baseline |
+| `prithivida/Splade_PP_en_v1` | Sparse | — | SPLADE sparse model for hybrid BM25+vector search |
+
+---
+
+## Changing the dense model
+
+You can swap the dense model for any [FastEmbed-compatible model](https://qdrant.github.io/fastembed/examples/Supported_Models/). Make sure `embedding_dim` matches the model's output dimension.
+
+```python
+config = MemWireConfig(
+    model_name="BAAI/bge-small-en-v1.5",
+    embedding_dim=384,
+)
+```
+
+```python
+config = MemWireConfig(
+    model_name="BAAI/bge-base-en-v1.5",
+    embedding_dim=768,
+)
+```
+
+```python
+config = MemWireConfig(
+    model_name="BAAI/bge-large-en-v1.5",
+    embedding_dim=1024,
+)
+```
+
+<Warning>
+  If you change the embedding model after data has already been stored, the existing vectors will be incompatible with new embeddings. Reset your Qdrant storage when switching models.
+</Warning>
+
+---
+
+## Disabling hybrid search
+
+If you want to use dense-only search (no sparse model loaded), disable hybrid search:
+
+```python
+config = MemWireConfig(
+    use_hybrid_search=False,
+)
+```
+
+---
+
+## Reranking
+
+Enable a cross-encoder reranker to re-score the top candidates after initial retrieval. This improves precision at the cost of slightly higher latency.
+
+```python
+config = MemWireConfig(
+    use_reranking=True,
+    reranker_model_name="Xenova/ms-marco-MiniLM-L-6-v2",
+)
+```
+
+---
+
+## Configuration reference
+
+| Parameter | Default | Description |
+|---|---|---|
+| `model_name` | `sentence-transformers/all-MiniLM-L6-v2` | Dense embedding model. Must be FastEmbed-compatible. |
+| `embedding_dim` | `384` | Output dimension of the dense model. Must match the model. |
+| `sparse_model_name` | `prithivida/Splade_PP_en_v1` | Sparse model for hybrid BM25+vector search. |
+| `use_hybrid_search` | `True` | Combine dense and sparse vectors. Disable to use dense-only search. |
+| `use_reranking` | `False` | Apply a cross-encoder reranker to re-score top candidates. |
+| `reranker_model_name` | `Xenova/ms-marco-MiniLM-L-6-v2` | Cross-encoder reranker model (used when `use_reranking=True`). |
+| `embedding_cache_maxsize` | `10000` | LRU cache size for embedding vectors. Increase for large-scale workloads. |

@@ -23,7 +23,7 @@ Public disclosure before a fix is available puts all MemWire users at risk.
 
 Send an email to:
 
-**security@memwire.dev**
+**hi@memwirelabs.com**
 
 Include the following in your report:
 

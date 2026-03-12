@@ -1,0 +1,122 @@
+---
+title: "Azure OpenAI"
+description: "Use Azure OpenAI deployments with MemWire memory context."
+---
+
+## Prerequisites
+
+- An [Azure OpenAI resource](https://portal.azure.com) with a deployed model
+- `openai` Python package (Azure OpenAI uses the same SDK)
+
+```bash
+pip install openai
+```
+
+You will need:
+
+| Value | Where to find it |
+|---|---|
+| `AZURE_OPENAI_API_KEY` | Azure portal → your OpenAI resource → Keys and Endpoint |
+| `AZURE_OPENAI_ENDPOINT` | Azure portal → your OpenAI resource → Keys and Endpoint |
+| `AZURE_OPENAI_DEPLOYMENT` | Azure AI Studio → Deployments → your deployment name |
+| `AZURE_OPENAI_API_VERSION` | Use `2024-02-01` or the latest stable version |
+
+---
+
+## Quickstart
+
+```python
+from openai import AzureOpenAI
+from memwire import MemWire, MemWireConfig
+
+client = AzureOpenAI(
+    api_key="your-azure-api-key",
+    azure_endpoint="https://your-resource.openai.azure.com",
+    api_version="2024-02-01",
+)
+
+config = MemWireConfig(qdrant_path="./memwire_data")
+memory = MemWire(config=config)
+
+USER_ID = "alice"
+
+# Store a message into memory
+memory.add(
+    user_id=USER_ID,
+    messages=[{"role": "user", "content": "I prefer dark mode and short answers."}],
+)
+
+# Recall relevant context for the next query
+result = memory.recall("How should I format my answers?", user_id=USER_ID)
+
+# Build the prompt with injected memory context
+messages = [{"role": "system", "content": "You are a helpful assistant."}]
+if result.formatted:
+    messages.append({"role": "system", "content": f"Memory context:\n{result.formatted}"})
+messages.append({"role": "user", "content": "How should I format my answers?"})
+
+# Call the Azure OpenAI API — use your deployment name as the model
+response = client.chat.completions.create(
+    model="your-deployment-name",
+    messages=messages,
+)
+reply = response.choices[0].message.content
+print(reply)
+
+# Reinforce memory paths that led to this response
+memory.feedback(response=reply, user_id=USER_ID)
+
+memory.close()
+```
+
+---
+
+## Using environment variables
+
+```bash
+export AZURE_OPENAI_API_KEY=your-azure-api-key
+export AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
+export AZURE_OPENAI_DEPLOYMENT=your-deployment-name
+export AZURE_OPENAI_API_VERSION=2024-02-01
+```
+
+```python
+import os
+from openai import AzureOpenAI
+
+client = AzureOpenAI(
+    api_key=os.environ["AZURE_OPENAI_API_KEY"],
+    azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+    api_version=os.environ["AZURE_OPENAI_API_VERSION"],
+)
+
+# Use deployment name from env when calling the API
+model = os.environ["AZURE_OPENAI_DEPLOYMENT"]
+```
+
+---
+
+## Streaming responses
+
+```python
+stream = client.chat.completions.create(
+    model="your-deployment-name",
+    messages=messages,
+    stream=True,
+)
+
+reply = ""
+for chunk in stream:
+    delta = chunk.choices[0].delta.content or ""
+    print(delta, end="", flush=True)
+    reply += delta
+
+# Reinforce after the full response is assembled
+memory.feedback(response=reply, user_id=USER_ID)
+```
+
+---
+
+## Full working example
+
+See [examples/azure-openai/](https://github.com/memoryoss/memwire/tree/main/examples/azure-openai) for a complete FastAPI web chat example with Docker and a pre-configured `.env.example`.

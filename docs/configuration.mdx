@@ -1,0 +1,360 @@
+---
+title: "Configure OSS Stack"
+description: "Configure the MemWire stack with your preferences for vector store, LLM, embedding model, search quality, recall tuning, and more."
+icon: "sliders"
+---
+
+All MemWire behaviour is controlled through `MemWireConfig`. Choose your vector store, embedding model, and LLM provider, then tune recall and graph settings to fit your use case.
+
+```python
+from memwire import MemWire, MemWireConfig
+
+config = MemWireConfig(
+    qdrant_path="./memwire_data",
+    qdrant_collection_prefix="app_",
+)
+memory = MemWire(config=config)
+```
+
+## Components
+
+<CardGroup cols={2}>
+  <Card title="Vector Databases" icon="hard-drive" href="/vector-databases">
+    Connect to a vector store.
+  </Card>
+  <Card title="Embedding Models" icon="cube" href="/embedders">
+    Choose embedding model.
+  </Card>
+  <Card title="LLMs" icon="message-bot" href="/llms">
+    Use any LLM provider with recalled context.
+  </Card>
+  <Card title="SQL Databases" icon="database" href="#sql-databases">
+    Choose where to store metadata ledger for memories, graph edges, and categories.
+  </Card>
+</CardGroup>
+
+---
+
+## Recall tuning
+
+Recall assembles relevant memories into a formatted context string for injection into LLM prompts.
+
+```python
+config = MemWireConfig(
+    recall_min_relevance=0.25,   # minimum similarity score to include a memory
+    recall_max_paths=10,         # max memory paths returned
+    recall_max_depth=4,          # BFS depth when traversing the memory graph
+    recall_seed_top_k=5,         # top-k seed nodes before graph traversal
+    tension_threshold=0.6,       # similarity above which two memories are flagged as contradictory
+    recency_weight=0.3,          # weight of recency vs relevance in scoring
+    recency_halflife=3600.0,     # half-life in seconds for recency decay
+)
+```
+
+| Parameter | Default | Description |
+|---|---|---|
+| `recall_min_relevance` | `0.25` | Minimum cosine similarity for a memory to be included in recall. |
+| `recall_max_paths` | `10` | Maximum number of memory paths returned per recall call. |
+| `recall_max_depth` | `4` | Maximum BFS depth when traversing the memory graph. |
+| `recall_seed_top_k` | `5` | Number of top-k seed nodes to start graph traversal from. |
+| `recall_bfs_max_branch` | `5` | Maximum branches per node during BFS traversal. |
+| `recall_bfs_max_paths` | `200` | Maximum candidate paths evaluated before pruning. |
+| `tension_threshold` | `0.6` | Similarity above which two memories are flagged as contradictory. |
+| `recency_weight` | `0.3` | Weight given to recency vs semantic relevance when scoring memories. |
+| `recency_halflife` | `3600.0` | Half-life in seconds for recency decay. Lower = faster decay. |
+
+---
+
+## Graph construction
+
+MemWire organises memories in a graph. Edges encode semantic relationships between memories.
+
+```python
+config = MemWireConfig(
+    displacement_threshold=0.15,
+    node_merge_similarity=0.85,
+    edge_weight_default=0.5,
+    edge_decay_rate=0.02,
+    edge_reinforce_amount=0.1,
+)
+```
+
+| Parameter | Default | Description |
+|---|---|---|
+| `displacement_threshold` | `0.15` | Minimum similarity required to create an edge between two memories. |
+| `node_merge_similarity` | `0.85` | Similarity above which two memory nodes are merged (deduplication). |
+| `edge_weight_default` | `0.5` | Initial weight for new edges. |
+| `edge_weight_min` | `0.01` | Floor for edge weights after decay. |
+| `edge_weight_max` | `1.0` | Ceiling for edge weights after reinforcement. |
+| `edge_decay_rate` | `0.02` | Rate at which unused edges decay per cycle. |
+| `edge_reinforce_amount` | `0.1` | Amount added to an edge weight on positive feedback. |
+| `cross_memory_recent_limit` | `50` | Number of recent memories considered when building cross-memory edges. |
+
+---
+
+## Memory classification
+
+Memories are automatically classified into categories using zero-shot cosine similarity.
+
+| Category | Description |
+|---|---|
+| `fact` | Factual statements or pieces of information |
+| `preference` | Personal preferences or opinions |
+| `instruction` | Directives or rules to follow |
+| `event` | Things that happened |
+| `entity` | Information about a person, place, or organisation |
+
+```python
+config = MemWireConfig(
+    classification_threshold=0.05,
+    default_anchors={
+        "fact": ["This is a factual statement"],
+        "preference": ["This is a personal preference"],
+        "instruction": ["This is a rule or directive to follow"],
+        "event": ["This is something that happened"],
+        "entity": ["This is about a specific person or organisation"],
+    }
+)
+```
+
+---
+
+## Feedback loop
+
+```python
+config = MemWireConfig(
+    feedback_strengthen_rate=0.1,
+    feedback_weaken_rate=0.05,
+    feedback_align_strengthen=0.5,
+    feedback_align_weaken=0.2,
+)
+```
+
+| Parameter | Default | Description |
+|---|---|---|
+| `feedback_strengthen_rate` | `0.1` | Amount to strengthen edges that contributed to a good response. |
+| `feedback_weaken_rate` | `0.05` | Amount to weaken edges that did not contribute. |
+| `feedback_align_strengthen` | `0.5` | Alignment score threshold above which edges are strengthened. |
+| `feedback_align_weaken` | `0.2` | Alignment score threshold below which edges are weakened. |
+
+---
+
+## SQL Databases
+
+MemWire stores memory metadata — content, graph edges, categories, and access counts — in a SQL database, while all embedding vectors live separately in a vector store. SQLite is the default because it requires no server or configuration, letting you run MemWire locally out of the box; switch to PostgreSQL or any other SQLAlchemy-compatible database by setting `database_url`.
+
+```python
+config = MemWireConfig(
+    database_url="sqlite:///memwire.db",
+    org_id="default",
+)
+```
+
+| Parameter | Default | Description |
+|---|---|---|
+| `database_url` | `None` | SQLAlchemy-compatible URL. Defaults to `sqlite:///memwire_{org_id}.db`. |
+| `org_id` | `"default"` | Organisation identifier for multi-tenant isolation. |
+
+---
+
+## Performance
+
+```python
+config = MemWireConfig(
+    background_threads=2,
+    embedding_cache_maxsize=10000,
+)
+```
+
+| Parameter | Default | Description |
+|---|---|---|
+| `background_threads` | `2` | Background threads for async graph and storage writes. |
+| `embedding_cache_maxsize` | `10000` | LRU cache size for embedding vectors. |
+
+
+```python
+from memwire import MemWire, MemWireConfig
+
+config = MemWireConfig(
+    qdrant_path="./memwire_data",
+    qdrant_collection_prefix="app_",
+)
+memory = MemWire(config=config)
+```
+
+No environment variables are required — every setting is an explicit Python argument with a sensible default.
+
+---
+
+## Search quality
+
+Control how memories are retrieved during search and recall.
+
+```python
+config = MemWireConfig(
+    use_hybrid_search=True,    # combine dense + sparse vectors
+    use_reranking=False,       # apply a cross-encoder reranker
+    reranker_model_name="Xenova/ms-marco-MiniLM-L-6-v2",
+)
+```
+
+| Parameter | Default | Description |
+|---|---|---|
+| `use_hybrid_search` | `True` | Combine dense and sparse vectors for more accurate retrieval. |
+| `use_reranking` | `False` | Apply a cross-encoder reranker to re-score top candidates. |
+| `reranker_model_name` | `Xenova/ms-marco-MiniLM-L-6-v2` | Reranker model (used when `use_reranking=True`). |
+
+---
+
+## Recall tuning
+
+Recall assembles relevant memories into a formatted context string for injection into LLM prompts.
+
+```python
+config = MemWireConfig(
+    recall_min_relevance=0.25,   # minimum similarity score to include a memory
+    recall_max_paths=10,         # max memory paths returned
+    recall_max_depth=4,          # BFS depth when traversing the memory graph
+    recall_seed_top_k=5,         # top-k seed nodes before graph traversal
+    tension_threshold=0.6,       # similarity above which two memories are flagged as contradictory
+    recency_weight=0.3,          # weight of recency vs relevance in scoring
+    recency_halflife=3600.0,     # half-life in seconds for recency decay
+)
+```
+
+| Parameter | Default | Description |
+|---|---|---|
+| `recall_min_relevance` | `0.25` | Minimum cosine similarity for a memory to be included in recall. |
+| `recall_max_paths` | `10` | Maximum number of memory paths returned per recall call. |
+| `recall_max_depth` | `4` | Maximum BFS depth when traversing the memory graph. |
+| `recall_seed_top_k` | `5` | Number of top-k seed nodes to start graph traversal from. |
+| `recall_bfs_max_branch` | `5` | Maximum branches per node during BFS traversal. |
+| `recall_bfs_max_paths` | `200` | Maximum candidate paths evaluated before pruning. |
+| `tension_threshold` | `0.6` | Similarity above which two memories are flagged as contradictory. |
+| `recency_weight` | `0.3` | Weight given to recency vs semantic relevance when scoring memories. |
+| `recency_halflife` | `3600.0` | Half-life in seconds for recency decay. Lower = faster decay. |
+
+---
+
+## Graph construction
+
+MemWire organises memories in a graph. Edges encode semantic relationships between memories.
+
+```python
+config = MemWireConfig(
+    displacement_threshold=0.15,  # min similarity to create an edge
+    node_merge_similarity=0.85,   # similarity above which two nodes are merged (dedup)
+    edge_weight_default=0.5,
+    edge_weight_min=0.01,
+    edge_weight_max=1.0,
+    edge_decay_rate=0.02,         # edges decay over time when not reinforced
+    edge_reinforce_amount=0.1,    # amount edges are boosted on positive feedback
+)
+```
+
+| Parameter | Default | Description |
+|---|---|---|
+| `displacement_threshold` | `0.15` | Minimum similarity required to create an edge between two memories. |
+| `node_merge_similarity` | `0.85` | Similarity above which two memory nodes are merged (deduplication). |
+| `edge_weight_default` | `0.5` | Initial weight for new edges. |
+| `edge_weight_min` | `0.01` | Floor for edge weights after decay. |
+| `edge_weight_max` | `1.0` | Ceiling for edge weights after reinforcement. |
+| `edge_decay_rate` | `0.02` | Rate at which unused edges decay per cycle. |
+| `edge_reinforce_amount` | `0.1` | Amount added to an edge weight on positive feedback. |
+| `cross_memory_recent_limit` | `50` | Number of recent memories considered when building cross-memory edges. |
+
+---
+
+## Memory classification
+
+Memories are automatically classified into categories. Classification uses zero-shot cosine similarity against anchor phrases.
+
+| Category | Description |
+|---|---|
+| `fact` | Factual statements or pieces of information |
+| `preference` | Personal preferences or opinions |
+| `instruction` | Directives or rules to follow |
+| `event` | Things that happened |
+| `entity` | Information about a person, place, or organisation |
+
+```python
+config = MemWireConfig(
+    classification_threshold=0.05,  # minimum score margin between top categories
+)
+```
+
+You can override the anchor phrases for each category:
+
+```python
+config = MemWireConfig(
+    default_anchors={
+        "fact": ["This is a factual statement"],
+        "preference": ["This is a personal preference"],
+        "instruction": ["This is a rule or directive to follow"],
+        "event": ["This is something that happened"],
+        "entity": ["This is about a specific person or organisation"],
+    }
+)
+```
+
+---
+
+## Feedback loop
+
+The feedback loop reinforces graph edges that led to good responses, and weakens edges that did not contribute.
+
+```python
+config = MemWireConfig(
+    feedback_strengthen_rate=0.1,    # edge boost on positive feedback
+    feedback_weaken_rate=0.05,       # edge reduction on negative feedback
+    feedback_align_strengthen=0.5,
+    feedback_align_weaken=0.2,
+)
+```
+
+| Parameter | Default | Description |
+|---|---|---|
+| `feedback_strengthen_rate` | `0.1` | Amount to strengthen edges that contributed to a good response. |
+| `feedback_weaken_rate` | `0.05` | Amount to weaken edges that did not contribute. |
+| `feedback_align_strengthen` | `0.5` | Alignment score threshold above which edges are strengthened. |
+| `feedback_align_weaken` | `0.2` | Alignment score threshold below which edges are weakened. |
+
+Call `memory.feedback()` after each LLM response to close the loop:
+
+```python
+result = memory.recall("How should I format my answers?", user_id="alice")
+# ... call your LLM with result.formatted as context ...
+memory.feedback(response="<llm response here>", user_id="alice")
+```
+
+---
+
+## Storage
+
+```python
+config = MemWireConfig(
+    database_url="sqlite:///memwire.db",  # SQLAlchemy-compatible URL
+    org_id="default",                     # organisation identifier for multi-tenant isolation
+)
+```
+
+| Parameter | Default | Description |
+|---|---|---|
+| `database_url` | `None` | SQLAlchemy-compatible database URL. Defaults to `sqlite:///memwire_{org_id}.db`. |
+| `org_id` | `"default"` | Organisation identifier. Used as a namespace for multi-tenant deployments. |
+
+---
+
+## Performance
+
+```python
+config = MemWireConfig(
+    background_threads=2,         # threads for async background writes
+    embedding_cache_maxsize=10000, # LRU cache for embedding vectors
+)
+```
+
+| Parameter | Default | Description |
+|---|---|---|
+| `background_threads` | `2` | Number of background threads for async graph and storage writes. |
+| `embedding_cache_maxsize` | `10000` | LRU cache size for embedding vectors. Increase for large workloads. |
