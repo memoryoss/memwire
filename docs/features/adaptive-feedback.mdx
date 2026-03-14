@@ -1,0 +1,84 @@
+---
+title: "Adaptive Feedback Loop"
+description: "Graph edge weights update from real LLM responses, so the memory graph improves with every conversation."
+---
+
+## How it works
+
+After your LLM generates a response, you can pass that response back to MemWire with `memory.feedback()`. The feedback processor:
+
+1. Embeds the response
+2. Looks up the **last recall result** for that user
+3. For each recalled memory path, computes alignment — the average cosine similarity between the response embedding and the node embeddings along the path
+4. **Strengthens** edges on paths that aligned well with the response
+5. **Weakens** edges on paths that did not align (or on conflicting paths that the response disagreed with)
+
+Over time, paths that lead to good responses accumulate higher edge weights and surface more readily in future recalls. Paths that are consistently irrelevant decay and stop contributing.
+
+---
+
+## Code example
+
+```python
+from openai import OpenAI
+from memwire import MemWire, MemWireConfig
+
+client = OpenAI()
+config = MemWireConfig(qdrant_path="./memwire_data")
+memory = MemWire(config=config)
+
+USER_ID = "alice"
+
+memory.add(user_id=USER_ID, messages=[
+    {"role": "user", "content": "I always write documentation before code."},
+    {"role": "user", "content": "I find long meetings unproductive."},
+])
+
+result = memory.recall("How do you approach software projects?", user_id=USER_ID)
+
+messages = [{"role": "system", "content": "You are a helpful assistant."}]
+if result.formatted:
+    messages.append({"role": "system", "content": f"Memory:\n{result.formatted}"})
+messages.append({"role": "user", "content": "How do you approach software projects?"})
+
+response = client.chat.completions.create(model="gpt-4o", messages=messages)
+reply = response.choices[0].message.content
+
+# Feed the response back — edges that contributed to this answer get stronger
+stats = memory.feedback(response=reply, user_id=USER_ID)
+print(stats)  # {"strengthened": 4, "weakened": 1}
+```
+
+---
+
+## What gets updated
+
+Only **graph edges** are updated — memory content is never modified. This means:
+
+- The graph topology stays stable; only traversal weights shift
+- Write volume is very low (only dirty edges are persisted)
+- The effect is gradual and bounded by `edge_weight_min` / `edge_weight_max`
+
+---
+
+## Tension handling
+
+When `memory.recall()` returns conflicting paths (memories that contradict each other), `memory.feedback()` checks which side the response actually agreed with:
+
+- If the response aligned with a conflicting path → that path is **strengthened**
+- If the response did not align → that path is **weakened**
+
+This lets the graph resolve contradictions naturally from usage.
+
+---
+
+## Configuration reference
+
+| Parameter | Default | Description |
+|---|---|---|
+| `feedback_strengthen_rate` | `0.1` | Base amount added to edge weights on aligned paths, scaled by alignment score. |
+| `feedback_weaken_rate` | `0.05` | Amount subtracted from edge weights on misaligned paths. |
+| `feedback_align_strengthen` | `0.5` | Alignment score above which a path is strengthened. |
+| `feedback_align_weaken` | `0.2` | Alignment score below which a path is weakened. |
+| `edge_weight_min` | `0.01` | Floor for edge weights after decay. |
+| `edge_weight_max` | `1.0` | Ceiling for edge weights after reinforcement. |

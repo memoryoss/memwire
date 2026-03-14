@@ -6,9 +6,9 @@ icon: "book-open"
 
 ## MemWire Open Source Overview
 
-MemWire is an **open source & enterprise-ready** AI memory infrastructure layer. MemWire gives your AI applications persistent, auditable memory with structured, updatable facts, fastest semantic retrieval across conversations and knowledge, integrated any document ingestion, and controlled LLM context assembly.
+MemWire is an **open source & enterprise-ready** AI memory infrastructure layer. MemWire gives your AI applications persistent, auditable memory with structured, updatable facts, **fastest semantic retrieval** across conversations and knowledge, integrated any document ingestion, and controlled LLM context assembly.
 
-- **Fully customizable** — adapt schemas, memory types, and pipelines to your use case
+- **Fully customizable** — adapt schemas, memory categories, and features to your use case
 - **Self-hosted** — run entirely on your local machine, on-premise or in your own cloud
 - **Multi-tenant** — isolate applications, users, and workspaces securely
 - **Bring your own database** — PostgreSQL, pgvector, Qdrant, Pinecone or your preferred stack
@@ -19,7 +19,7 @@ MemWire is an **open source & enterprise-ready** AI memory infrastructure layer.
 
 <Columns cols={2}>
   <Card title="Fully customizable" icon="sliders">
-    Adapt schemas, memory types, and pipelines to your use case. Swap the embedding model, tune recall sensitivity, or add your own memory categories.
+    Adapt schemas, memory types, and storage to your use case. Swap the embedding model, tune recall sensitivity, or add your own memory categories.
   </Card>
   <Card title="Self-hosted" icon="server">
     Run entirely on your local machine, on-premise or in your own cloud. Your data never leaves your infrastructure.
@@ -29,6 +29,12 @@ MemWire is an **open source & enterprise-ready** AI memory infrastructure layer.
   </Card>
   <Card title="Model-agnostic" icon="microchip">
     Bring your own LLM — OpenAI, Anthropic, Gemini, Ollama, or any provider.
+  </Card>
+  <Card title="Graph-powered recall" icon="share-nodes">
+    Memory is stored as a displacement graph and retrieved very fast.
+  </Card>
+  <Card title="Zero-LLM classification" icon="bolt">
+    Memories are categorized using anchor-based classification and no LLM call required. Instant, cost-free tagging with zero added latency.
   </Card>
 </Columns>
 

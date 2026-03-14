@@ -1,0 +1,124 @@
+---
+title: "LLM-Free Classification"
+description: "Auto-tag every memory by any category and no external LLM API calls."
+---
+
+## How it works
+
+Every memory is automatically classified into a category when it is stored. Instead of calling an LLM to categorize, MemWire uses **cosine similarity to anchor embeddings**:
+
+1. Each category has one or more example sentences (anchors) that define its meaning
+2. At startup, anchor embeddings are computed as the centroid of all examples for that category
+3. When a new memory arrives, its embedding is compared to every anchor centroid
+4. The category with the highest cosine similarity wins — as long as it clears `classification_threshold`
+
+This is fully local, runs in microseconds, and requires no API key.
+
+---
+
+## Default categories
+
+| Category | Example anchors |
+|---|---|
+| `fact` | "This is a factual statement", "The capital of France is Paris" |
+| `preference` | "I prefer dark mode over light mode", "I like my coffee black" |
+| `instruction` | "Always respond in formal English", "Never share my personal information" |
+| `event` | "We had a team meeting yesterday", "The product launched last week" |
+| `entity` | "This is about a company called Acme", "John is the head of engineering" |
+
+---
+
+## Code example
+
+```python
+from memwire import MemWire, MemWireConfig
+
+config = MemWireConfig(qdrant_path="./memwire_data")
+memory = MemWire(config=config)
+
+records = memory.add(
+    user_id="alice",
+    messages=[
+        {"role": "user", "content": "I always prefer bullet points over long paragraphs."},
+        {"role": "user", "content": "Our Q1 planning session is scheduled for next Monday."},
+        {"role": "user", "content": "Water freezes at 0 degrees Celsius."},
+    ],
+)
+
+for record in records:
+    print(f"{record.category}: {record.content}")
+# preference: I always prefer bullet points...
+# event:      Our Q1 planning session...
+# fact:       Water freezes at...
+```
+
+---
+
+## Filtering search by category
+
+```python
+results = memory.search(
+    "formatting preferences",
+    user_id="alice",
+    category="preference",
+    top_k=5,
+)
+for record, score in results:
+    print(f"[{score:.2f}] {record.content}")
+```
+
+---
+
+## Adding custom categories
+
+Define domain-specific categories for your application:
+
+```python
+memory.add_anchor(
+    name="bug_report",
+    text="There is a crash or error in the application",
+    user_id="alice",
+)
+
+memory.add_anchor(
+    name="feature_request",
+    text="The user is asking for a new capability to be added",
+    user_id="alice",
+)
+```
+
+Multiple calls to `add_anchor` with the same name accumulate examples — the centroid is recomputed each time, sharpening the category boundary.
+
+---
+
+## Customising anchors at config level
+
+```python
+config = MemWireConfig(
+    qdrant_path="./memwire_data",
+    classification_threshold=0.05,   # lower = more memories get classified
+    default_anchors={
+        "goal": [
+            "This is something the user wants to achieve",
+            "I want to finish the project by end of quarter",
+        ],
+        "constraint": [
+            "This is a limitation or restriction",
+            "We only have a budget of $10,000",
+        ],
+    }
+)
+```
+
+<Note>
+Setting `default_anchors` replaces the built-in set entirely. Include any categories you want to keep from the defaults.
+</Note>
+
+---
+
+## Configuration reference
+
+| Parameter | Default | Description |
+|---|---|---|
+| `classification_threshold` | `0.05` | Minimum cosine similarity to assign a category. Below this the memory is tagged `unknown`. |
+| `default_anchors` | 5 built-in categories | Dict of `category_name → list[example_sentences]`. |

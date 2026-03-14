@@ -1,94 +1,63 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "OpenAPI Plant Store",
-    "description": "A sample API that uses a plant store as an example to demonstrate features in the OpenAPI specification",
+    "title": "MemWire API",
+    "description": "Persistent AI memory infrastructure \u2014 store, recall, and search memories for your AI agents.",
+    "version": "1.0.0",
     "license": {
-      "name": "MIT"
-    },
-    "version": "1.0.0"
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0"
+    }
   },
   "servers": [
     {
-      "url": "http://sandbox.mintlify.com"
-    }
-  ],
-  "security": [
-    {
-      "bearerAuth": []
+      "url": "http://localhost:8000",
+      "description": "Local development server"
     }
   ],
   "paths": {
-    "/plants": {
-      "get": {
-        "description": "Returns all plants from the system that the user has access to",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "The maximum number of results to return",
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Plant response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Plant"
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Unexpected error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      },
+    "/v1/memory": {
       "post": {
-        "description": "Creates a new plant in the store",
+        "summary": "Store memory",
+        "description": "Store one or more conversation messages into the user's memory graph. Each message is embedded, classified, and indexed \u2014 ready for recall and search.",
+        "operationId": "store_memory",
+        "tags": [
+          "Memory"
+        ],
         "requestBody": {
-          "description": "Plant to add to the store",
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NewPlant"
+                "$ref": "#/components/schemas/StoreRequest"
+              },
+              "example": {
+                "user_id": "alice",
+                "app_id": "my_app",
+                "workspace_id": "team_1",
+                "messages": [
+                  {
+                    "role": "user",
+                    "content": "I prefer dark mode and short answers."
+                  }
+                ]
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
-            "description": "plant response",
+            "description": "Memories stored successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Plant"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "unexpected error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/StoreResponse"
+                },
+                "example": {
+                  "stored": 1,
+                  "memory_ids": [
+                    "mem_3f7a1c2d9e4b"
+                  ]
                 }
               }
             }
@@ -96,57 +65,118 @@
         }
       }
     },
-    "/plants/{id}": {
-      "delete": {
-        "description": "Deletes a single plant based on the ID supplied",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "ID of plant to delete",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Plant deleted",
-            "content": {}
-          },
-          "400": {
-            "description": "unexpected error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  },
-  "webhooks": {
-    "/plant/webhook": {
+    "/v1/memory/recall": {
       "post": {
-        "description": "Information about a new plant added to the store",
+        "summary": "Recall memory context",
+        "description": "Traverse the memory graph via BFS to find the most relevant context for a natural-language query. Returns a formatted string ready to inject into your LLM prompt.",
+        "operationId": "recall_memory",
+        "tags": [
+          "Memory"
+        ],
         "requestBody": {
-          "description": "Plant added to the store",
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NewPlant"
+                "$ref": "#/components/schemas/RecallRequest"
+              },
+              "example": {
+                "user_id": "alice",
+                "app_id": "my_app",
+                "workspace_id": "team_1",
+                "query": "How should I format my answers?",
+                "top_k": 5
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Return a 200 status to indicate that the data was received successfully"
+            "description": "Recalled context and matching paths",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecallResponse"
+                },
+                "example": {
+                  "context": "alice prefers dark mode and short answers.",
+                  "paths": 2,
+                  "knowledge": []
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/memory/search": {
+      "post": {
+        "summary": "Search memories",
+        "description": "Semantic similarity search over stored memories using hybrid dense + sparse retrieval. Optionally filter by category.",
+        "operationId": "search_memory",
+        "tags": [
+          "Memory"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchRequest"
+              },
+              "example": {
+                "user_id": "alice",
+                "query": "dark mode",
+                "top_k": 10
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "List of matching memories with similarity scores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                },
+                "example": {
+                  "results": [
+                    {
+                      "memory_id": "mem_3f7a1c2d9e4b",
+                      "content": "I prefer dark mode and short answers.",
+                      "category": "preference",
+                      "score": 0.94
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "description": "Returns the server status. Use this to verify the API is up before sending requests.",
+        "operationId": "health_check",
+        "tags": [
+          "System"
+        ],
+        "responses": {
+          "200": {
+            "description": "Server is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                },
+                "example": {
+                  "status": "ok"
+                }
+              }
+            }
           }
         }
       }
@@ -154,63 +184,217 @@
   },
   "components": {
     "schemas": {
-      "Plant": {
-        "required": [
-          "name"
-        ],
+      "Message": {
         "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
         "properties": {
-          "name": {
-            "description": "The name of the plant",
-            "type": "string"
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant",
+              "system"
+            ],
+            "description": "The role of the message author."
           },
-          "tag": {
-            "description": "Tag to specify the type",
-            "type": "string"
+          "content": {
+            "type": "string",
+            "description": "The text content of the message."
           }
         }
       },
-      "NewPlant": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Plant"
+      "StoreRequest": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "messages"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "User identifier. Required for all operations."
           },
-          {
-            "required": [
-              "id"
-            ],
-            "type": "object",
-            "properties": {
-              "id": {
-                "description": "Identification number of the plant",
-                "type": "integer",
-                "format": "int64"
-              }
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            },
+            "description": "One or more conversation messages to store."
+          },
+          "app_id": {
+            "type": "string",
+            "description": "Optional application namespace.",
+            "nullable": true
+          },
+          "workspace_id": {
+            "type": "string",
+            "description": "Optional workspace or team namespace.",
+            "nullable": true
+          },
+          "agent_id": {
+            "type": "string",
+            "description": "Optional agent namespace.",
+            "nullable": true
+          }
+        }
+      },
+      "StoreResponse": {
+        "type": "object",
+        "properties": {
+          "stored": {
+            "type": "integer",
+            "description": "Number of messages stored."
+          },
+          "memory_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "IDs of the created memory records."
+          }
+        }
+      },
+      "RecallRequest": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "query"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "User to recall memory for."
+          },
+          "query": {
+            "type": "string",
+            "description": "Natural-language query to find relevant memories."
+          },
+          "app_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "workspace_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "agent_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "top_k": {
+            "type": "integer",
+            "default": 5,
+            "description": "Maximum number of paths to return."
+          }
+        }
+      },
+      "RecallResponse": {
+        "type": "object",
+        "properties": {
+          "context": {
+            "type": "string",
+            "description": "Formatted context string ready to inject into an LLM prompt."
+          },
+          "paths": {
+            "type": "integer",
+            "description": "Number of supporting memory paths found."
+          },
+          "knowledge": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Matching knowledge base chunks, if any."
+          }
+        }
+      },
+      "SearchRequest": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "query"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string",
+            "description": "Semantic search query."
+          },
+          "app_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "workspace_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "agent_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "top_k": {
+            "type": "integer",
+            "default": 10,
+            "description": "Number of results to return."
+          },
+          "category": {
+            "type": "string",
+            "nullable": true,
+            "description": "Filter by memory category: preference, fact, instruction, event, or entity.",
+            "enum": [
+              "preference",
+              "fact",
+              "instruction",
+              "event",
+              "entity"
+            ]
+          }
+        }
+      },
+      "SearchResult": {
+        "type": "object",
+        "properties": {
+          "memory_id": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "nullable": true
+          },
+          "score": {
+            "type": "number",
+            "format": "float",
+            "description": "Similarity score between 0 and 1."
+          }
+        }
+      },
+      "SearchResponse": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchResult"
             }
           }
-        ]
+        }
       },
-      "Error": {
-        "required": [
-          "error",
-          "message"
-        ],
+      "HealthResponse": {
         "type": "object",
         "properties": {
-          "error": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "message": {
-            "type": "string"
+          "status": {
+            "type": "string",
+            "example": "ok"
           }
         }
-      }
-    },
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer"
       }
     }
   }

@@ -1,0 +1,113 @@
+---
+title: "Knowledge Base"
+description: "Ingest documents and chunks that are searched alongside episodic memories at recall time."
+---
+
+## How it works
+
+Episodic memories (from conversations) and static knowledge (from documents) have different lifecycles. MemWire keeps them separate but surfaces both at recall time.
+
+When you call `memory.recall()`, the engine:
+
+1. Traverses the memory graph for relevant conversation paths
+2. **Also searches knowledge chunks** using the same query embedding
+3. Merges both results into a single `RecallResult`
+
+You can also search knowledge directly without going through the memory graph.
+
+---
+
+## Adding a knowledge base
+
+```python
+from memwire import MemWire, MemWireConfig
+
+config = MemWireConfig(qdrant_path="./memwire_data")
+memory = MemWire(config=config)
+
+USER_ID = "alice"
+
+memory.add_knowledge(
+    name="Company Handbook",
+    chunks=[
+        {"content": "All employees must complete onboarding within the first 30 days."},
+        {"content": "Remote work is allowed up to 3 days per week."},
+        {"content": "Expenses above $500 require manager approval."},
+    ],
+    user_id=USER_ID,
+)
+```
+
+Chunks are embedded and stored in a dedicated Qdrant collection, separate from memory vectors.
+
+---
+
+## Recall with knowledge
+
+Knowledge chunks appear automatically in recall results:
+
+```python
+result = memory.recall("What is the expense approval policy?", user_id=USER_ID)
+
+# Conversation memories
+print(result.formatted)
+
+# Knowledge chunks (also included in formatted)
+for chunk in result.knowledge:
+    print(chunk.content, chunk.score)
+```
+
+---
+
+## Direct knowledge search
+
+```python
+chunks = memory.search_knowledge(
+    "remote work policy",
+    user_id=USER_ID,
+    top_k=5,
+)
+for chunk in chunks:
+    print(f"[{chunk.score:.2f}] {chunk.content}")
+```
+
+---
+
+## Deleting a knowledge base
+
+```python
+# List knowledge bases via stats
+stats = memory.get_stats(user_id=USER_ID)
+print(stats["knowledge_bases"])  # count
+
+# Delete by kb_id
+memory.delete_knowledge(kb_id="kb_abc123")
+```
+
+---
+
+## Scoping knowledge
+
+Knowledge bases respect the same multi-tenancy hierarchy as memories:
+
+```python
+memory.add_knowledge(
+    name="Team Runbook",
+    chunks=[{"content": "Deploy with: ./scripts/deploy.sh production"}],
+    user_id=USER_ID,
+    workspace_id="team_engineering",
+    app_id="ops_assistant",
+)
+```
+
+---
+
+## KnowledgeChunk fields
+
+| Field | Type | Description |
+|---|---|---|
+| `chunk_id` | `str` | Unique identifier for the chunk |
+| `kb_id` | `str` | Parent knowledge base ID |
+| `content` | `str` | Chunk text |
+| `score` | `float` | Similarity score from the search |
+| `metadata` | `dict` | Optional metadata passed at ingestion |

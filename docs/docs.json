@@ -2,6 +2,7 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
   "name": "MemWire",
+  "openapi": "api-reference/openapi.json",
   "colors": {
     "primary": "#6366f1",
     "light": "#818cf8",
@@ -18,6 +19,18 @@
             "pages": [
               "index",
               "quickstart"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/overview",
+              "features/graph-memory",
+              "features/multi-tenancy",
+              "features/knowledge-base",
+              "features/hybrid-search",
+              "features/llm-free-classification",
+              "features/adaptive-feedback"
             ]
           },
           {
@@ -57,17 +70,23 @@
         "tab": "API reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Overview",
             "pages": [
               "api-reference/introduction"
             ]
           },
           {
-            "group": "Endpoints",
+            "group": "Memory",
             "pages": [
               "api-reference/endpoint/store",
               "api-reference/endpoint/recall",
               "api-reference/endpoint/search"
+            ]
+          },
+          {
+            "group": "System",
+            "pages": [
+              "api-reference/endpoint/health"
             ]
           }
         ]

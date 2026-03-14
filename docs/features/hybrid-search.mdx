@@ -1,0 +1,100 @@
+---
+title: "Hybrid Search"
+description: "Combine dense semantic vectors and sparse SPLADE keyword vectors for higher-recall retrieval."
+---
+
+## How it works
+
+Pure semantic (dense) search misses exact-match queries like product codes, names, or technical terms. Pure keyword (sparse) search misses paraphrases and synonyms. MemWire combines both using **Qdrant's hybrid search** with reciprocal rank fusion:
+
+- **Dense vectors** — sentence embeddings from `TextEmbedding` (FastEmbed), capturing semantic meaning
+- **Sparse vectors** — SPLADE token weights from `SparseTextEmbedding`, capturing exact lexical signal
+
+Both vectors are computed for every stored memory and every query. Results are merged by Qdrant before being returned to MemWire.
+
+---
+
+## Enabling hybrid search
+
+Hybrid search is **on by default**. No extra configuration needed:
+
+```python
+from memwire import MemWire, MemWireConfig
+
+config = MemWireConfig(qdrant_path="./memwire_data")   # use_hybrid_search=True by default
+memory = MemWire(config=config)
+```
+
+---
+
+## Disabling hybrid search
+
+If you want dense-only retrieval (faster, lower memory):
+
+```python
+config = MemWireConfig(
+    qdrant_path="./memwire_data",
+    use_hybrid_search=False,
+)
+```
+
+<Warning>
+Disabling hybrid search means the sparse model is never loaded. This saves ~200 MB of RAM but reduces retrieval quality for exact-match queries.
+</Warning>
+
+---
+
+## Adding a cross-encoder reranker
+
+For the highest retrieval quality, combine hybrid search with a cross-encoder reranker. The reranker re-scores the top candidates using full query-document attention:
+
+```python
+config = MemWireConfig(
+    qdrant_path="./memwire_data",
+    use_hybrid_search=True,
+    use_reranking=True,
+    reranker_model_name="Xenova/ms-marco-MiniLM-L-6-v2",  # default
+)
+memory = MemWire(config=config)
+
+results = memory.search("deadline for the project", user_id="alice", top_k=5)
+for record, score in results:
+    print(f"[{score:.3f}] {record.content}")
+```
+
+The reranker is **lazy-loaded** — it is only downloaded and initialised on the first `search()` call.
+
+---
+
+## Models
+
+| Role | Default model | Notes |
+|---|---|---|
+| Dense embedding | `sentence-transformers/all-MiniLM-L6-v2` | 384-dim, fast |
+| Sparse embedding | `prithivida/Splade_PP_en_v1` | SPLADE++ |
+| Reranker | `Xenova/ms-marco-MiniLM-L-6-v2` | Cross-encoder, optional |
+
+Swap any model via `MemWireConfig`:
+
+```python
+config = MemWireConfig(
+    model_name="BAAI/bge-small-en-v1.5",
+    sparse_model_name="prithivida/Splade_PP_en_v1",
+    reranker_model_name="Xenova/ms-marco-MiniLM-L-6-v2",
+    embedding_dim=384,
+)
+```
+
+---
+
+## Configuration reference
+
+| Parameter | Default | Description |
+|---|---|---|
+| `use_hybrid_search` | `True` | Combine dense and sparse vectors for retrieval. |
+| `use_reranking` | `False` | Apply a cross-encoder reranker to top results. |
+| `model_name` | `sentence-transformers/all-MiniLM-L6-v2` | Dense embedding model. |
+| `sparse_model_name` | `prithivida/Splade_PP_en_v1` | Sparse (SPLADE) embedding model. |
+| `reranker_model_name` | `Xenova/ms-marco-MiniLM-L-6-v2` | Cross-encoder reranker model. |
+| `embedding_dim` | `384` | Dimension of the dense embedding. |
+| `embedding_cache_maxsize` | `10000` | LRU cache size for embedding vectors. |

@@ -1,0 +1,97 @@
+---
+title: "Multi-Tenancy"
+description: "Isolate memory across organisations, workspaces, apps, and users with a native four-level hierarchy."
+---
+
+## How it works
+
+MemWire has a built-in four-level isolation hierarchy. Every memory, graph node, graph edge, and knowledge chunk is tagged with up to four identifiers:
+
+```
+org_id  →  workspace_id  →  app_id  →  user_id
+```
+
+All queries — recall, search, and knowledge — are automatically scoped to the identifiers you pass. No cross-tenant data leaks are possible because every Qdrant filter and SQL index is keyed on this hierarchy.
+
+---
+
+## Levels explained
+
+| Level | Identifier | Typical use |
+|---|---|---|
+| Organisation | `org_id` | Top-level billing or company boundary |
+| Workspace | `workspace_id` | Team, project, or environment (prod vs staging) |
+| Application | `app_id` | Individual product or service |
+| User | `user_id` | End-user — required on every call |
+
+You only need to use the levels that make sense for your architecture. `user_id` is always required; the others default to `None`.
+
+---
+
+## Code example
+
+```python
+from memwire import MemWire, MemWireConfig
+
+# Set org_id at config level — applies to all operations
+config = MemWireConfig(
+    qdrant_path="./memwire_data",
+    org_id="acme_corp",
+)
+memory = MemWire(config=config)
+
+# Add memory scoped to a workspace + app + user
+memory.add(
+    user_id="alice",
+    workspace_id="team_design",
+    app_id="design_assistant",
+    messages=[{"role": "user", "content": "I prefer minimalist UI patterns."}],
+)
+
+# Recall is automatically scoped — alice in design_assistant only
+result = memory.recall(
+    "What are my design preferences?",
+    user_id="alice",
+    workspace_id="team_design",
+    app_id="design_assistant",
+)
+print(result.formatted)
+
+# Bob in a different workspace never sees alice's memories
+result_bob = memory.recall(
+    "What are my design preferences?",
+    user_id="bob",
+    workspace_id="team_engineering",
+    app_id="code_assistant",
+)
+print(result_bob.formatted)  # empty — no cross-contamination
+```
+
+---
+
+## Agent isolation
+
+Pass `agent_id` to further scope memories to a specific AI agent within a user session:
+
+```python
+memory.add(
+    user_id="alice",
+    agent_id="planner_agent",
+    messages=[{"role": "assistant", "content": "I scheduled the meeting for Friday."}],
+)
+
+result = memory.recall(
+    "When is the meeting?",
+    user_id="alice",
+    agent_id="planner_agent",
+)
+```
+
+---
+
+## Configuration reference
+
+| Parameter | Default | Description |
+|---|---|---|
+| `org_id` | `"default"` | Organisation identifier set at config level. |
+| `database_url` | `None` | SQLAlchemy URL. Defaults to `sqlite:///memwire_{org_id}.db`. |

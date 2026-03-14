@@ -1,0 +1,87 @@
+---
+title: "Graph Memory"
+description: "How MemWire builds and traverses a token-level displacement graph to recall semantically connected memories."
+---
+
+## How it works
+
+Most memory systems store a flat list of strings and retrieve them by cosine similarity. MemWire instead builds a **graph of token-level nodes** where edges encode semantic displacement relationships between tokens across memories.
+
+When you add a message, the pipeline:
+
+1. Tokenises the content
+2. Embeds each token both in isolation and in context
+3. Computes a **displacement vector** — the difference between a token's isolated embedding and its contextual one
+4. Creates graph nodes for each token and connects pairs whose displacement vectors are similar above a threshold
+5. Cross-links nodes from the new memory to nodes from recent memories
+
+At recall time, seed nodes are found via vector search and a **BFS traversal** follows edges through the graph, collecting multi-hop paths weighted by recency and relevance.
+
+---
+
+## What you get
+
+- **Multi-hop recall** — a query about "my project deadline" can surface memories about "I work in software" and "I prefer async communication" via shared graph paths
+- **Deduplication** — tokens above `node_merge_similarity` are merged into the same node, so repeated concepts accumulate strength rather than bloating the graph
+- **Path scoring** — paths are ranked by the geometric mean of edge weights and node similarities, then pruned to `recall_max_paths`
+- **Formatted context** — `result.formatted` gives you a ready-to-inject string for your LLM prompt
+
+---
+
+## Code example
+
+```python
+from memwire import MemWire, MemWireConfig
+
+config = MemWireConfig(
+    qdrant_path="./memwire_data",
+    displacement_threshold=0.15,   # minimum similarity to form an edge
+    node_merge_similarity=0.85,    # similarity above which nodes are merged
+    recall_seed_top_k=5,           # seeds before BFS starts
+    recall_max_depth=4,            # BFS hops
+    recall_max_paths=10,           # paths returned
+)
+memory = MemWire(config=config)
+
+USER_ID = "alice"
+
+memory.add(user_id=USER_ID, messages=[
+    {"role": "user", "content": "I work in a fast-paced software startup."},
+    {"role": "user", "content": "I prefer concise, direct communication."},
+    {"role": "user", "content": "Our sprint deadline is Friday."},
+])
+
+result = memory.recall("How should I write my status update?", user_id=USER_ID)
+print(result.formatted)
+```
+
+---
+
+## Recall result structure
+
+The `RecallResult` object contains:
+
+| Field | Type | Description |
+|---|---|---|
+| `supporting` | `list[RecallPath]` | Paths that positively align with the query |
+| `conflicting` | `list[RecallPath]` | Paths that contradict each other (tensions) |
+| `knowledge` | `list[KnowledgeChunk]` | Matching knowledge base chunks |
+| `formatted` | `str` | Ready-to-inject context string |
+
+---
+
+## Configuration reference
+
+| Parameter | Default | Description |
+|---|---|---|
+| `displacement_threshold` | `0.15` | Minimum displacement similarity to create an edge. |
+| `node_merge_similarity` | `0.85` | Similarity above which two nodes are merged. |
+| `recall_seed_top_k` | `5` | Top-k seed nodes before BFS traversal. |
+| `recall_max_depth` | `4` | Maximum BFS hops from a seed node. |
+| `recall_max_paths` | `10` | Maximum paths returned per recall call. |
+| `recall_bfs_max_branch` | `5` | Maximum branches explored per node. |
+| `recall_bfs_max_paths` | `200` | Maximum candidate paths before pruning. |
+| `recall_min_relevance` | `0.25` | Minimum seed score to start a BFS path. |
+| `recency_weight` | `0.3` | Weight of recency vs semantic relevance. |
+| `recency_halflife` | `3600.0` | Half-life in seconds for recency decay. |
+| `cross_memory_recent_limit` | `50` | Recent memories considered when building cross-memory edges. |
