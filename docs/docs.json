@@ -142,5 +142,8 @@
       "github": "https://github.com/memoryoss/memwire",
       "discord": "https://discord.gg/memwire"
     }
+  },
+  "seo": {
+    "indexing": "all"
   }
 }
