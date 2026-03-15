@@ -10,7 +10,7 @@
   },
   "logo": {
     "light": "/logo/logo-dark.png",
-    "dark": "/logo/logo-light.png"
+    "dark": "/logo/logo-dark.png"
   },
   "favicon": "/favicon.svg",
   "metadata": {
@@ -155,5 +155,6 @@
   },
   "seo": {
     "indexing": "all"
-  }
+  },
+  "description": "Open source & enterprise-ready AI memory infrastructure layer"
 }
