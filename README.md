@@ -1,5 +1,9 @@
 # MemWire
 
+<p align="center">
+  <img src="docs/images/banner.png" alt="MemWire" width="100%" />
+</p>
+
 > Enterprise-grade, self-hosted AI memory infrastructure layer. Deploy persistent AI memory on-premise or in any cloud with your own LLM and database.
 
 ![Self-Hosted](https://img.shields.io/badge/Self--Hosted-Yes-blue)
