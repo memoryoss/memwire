@@ -5,13 +5,13 @@ description: "How MemWire builds and traverses a token-level displacement graph 
 
 ## How it works
 
-Most memory systems store a flat list of strings and retrieve them by cosine similarity. MemWire instead builds a **graph of token-level nodes** where edges encode semantic displacement relationships between tokens across memories.
+Most memory solutions store a flat list of strings and retrieve them by cosine similarity. MemWire instead builds a **graph of token-level nodes** where edges encode semantic displacement relationships between tokens across memories.
 
 When you add a message, the pipeline:
 
 1. Tokenises the content
 2. Embeds each token both in isolation and in context
-3. Computes a **displacement vector** — the difference between a token's isolated embedding and its contextual one
+3. Computes a **displacement vector** which is the difference between a token's isolated embedding and its contextual one
 4. Creates graph nodes for each token and connects pairs whose displacement vectors are similar above a threshold
 5. Cross-links nodes from the new memory to nodes from recent memories
 

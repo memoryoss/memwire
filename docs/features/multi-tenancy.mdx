@@ -11,7 +11,7 @@ MemWire has a built-in four-level isolation hierarchy. Every memory, graph node,
 org_id  →  workspace_id  →  app_id  →  user_id
 ```
 
-All queries — recall, search, and knowledge — are automatically scoped to the identifiers you pass. No cross-tenant data leaks are possible because every Qdrant filter and SQL index is keyed on this hierarchy.
+All queries like recall, search, and knowledge are automatically scoped to the identifiers you pass. No cross-tenant data leaks are possible because every vector storage filter and SQL index is keyed on this hierarchy.
 
 ---
 
@@ -22,7 +22,7 @@ All queries — recall, search, and knowledge — are automatically scoped to th
 | Organisation | `org_id` | Top-level billing or company boundary |
 | Workspace | `workspace_id` | Team, project, or environment (prod vs staging) |
 | Application | `app_id` | Individual product or service |
-| User | `user_id` | End-user — required on every call |
+| User | `user_id` | End-user required on every call |
 
 You only need to use the levels that make sense for your architecture. `user_id` is always required; the others default to `None`.
 
