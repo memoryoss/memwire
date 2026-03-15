@@ -1,0 +1,97 @@
+---
+title: "Reranker"
+description: "Boost search precision with a local cross-encoder that rescores candidates using full query-document attention."
+---
+
+## How it works
+
+Vector similarity search ranks results by approximate proximity in embedding space. This is fast but imprecise. A document can be a close neighbour in embedding space without actually answering the query.
+
+A **cross-encoder reranker** fixes this. Instead of comparing independent embeddings, it receives the query and each candidate document together and produces an exact relevance score using bidirectional attention:
+
+1. `search()` fetches `top_k × 2` candidates from a vector store (over-fetch)
+2. The cross-encoder scores every candidate against the query in a single batch
+3. Results are re-sorted by cross-encoder score and truncated to `top_k`
+
+---
+
+## Enabling the reranker
+
+Reranking is **disabled by default**. Enable it with a single config flag:
+
+```python
+from memwire import MemWire, MemWireConfig
+
+config = MemWireConfig(
+    qdrant_path="./memwire_data",
+    use_reranking=True,
+)
+memory = MemWire(config=config)
+
+results = memory.search("when is the project deadline?", user_id="alice", top_k=5)
+for record, score in results:
+    print(f"[{score:.4f}] {record.content}")
+```
+
+The model is **lazy-loaded**, it is downloaded and initialised only on the first `search()` call that triggers reranking, not at every startup.
+
+---
+
+## Changing the model
+
+The default model is `Xenova/ms-marco-MiniLM-L-6-v2`, a lightweight MS MARCO-trained cross-encoder. Swap it via `reranker_model_name`:
+
+```python
+config = MemWireConfig(
+    qdrant_path="./memwire_data",
+    use_reranking=True,
+    reranker_model_name="Xenova/ms-marco-MiniLM-L-6-v2",  # default
+)
+```
+
+Any ONNX cross-encoder supported by FastEmbed can be used here.
+
+---
+
+## Combining with hybrid search
+
+For the best retrieval quality, run both hybrid search and reranking together:
+
+```python
+config = MemWireConfig(
+    qdrant_path="./memwire_data",
+    use_hybrid_search=True,   # dense + sparse retrieval (default)
+    use_reranking=True,       # cross-encoder rescoring on top
+)
+memory = MemWire(config=config)
+```
+
+The pipeline becomes: **sparse + dense fusion → cross-encoder rescore → top-k**.
+
+<Tip>
+Hybrid search and reranking complement each other. Hybrid search maximises recall; the reranker maximises precision from those candidates.
+</Tip>
+
+---
+
+## Performance considerations
+
+| Concern | Detail |
+|---|---|
+| **First call latency** | The ONNX model is downloaded once (~85 MB) and cached by FastEmbed. |
+| **Per-query latency** | Cross-encoder scores `top_k × 2` documents in a single batched ONNX forward pass — typically 10–50 ms on CPU. |
+| **Memory** | The reranker model stays resident after first use (~100 MB RAM). |
+| **Privacy** | Everything runs locally. No query or memory content is sent to any external service. |
+
+<Warning>
+Reranking only applies to `search()`. The `recall()` method uses graph-based BFS traversal and is not affected by `use_reranking`.
+</Warning>
+
+---
+
+## Configuration reference
+
+| Parameter | Default | Description |
+|---|---|---|
+| `use_reranking` | `False` | Enable cross-encoder reranking on `search()` results. |
+| `reranker_model_name` | `Xenova/ms-marco-MiniLM-L-6-v2` | FastEmbed-compatible cross-encoder model name. |

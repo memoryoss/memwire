@@ -29,6 +29,7 @@
               "features/multi-tenancy",
               "features/knowledge-base",
               "features/hybrid-search",
+              "features/reranker",
               "features/llm-free-classification",
               "features/adaptive-feedback"
             ]
