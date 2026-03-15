@@ -10,11 +10,16 @@
   },
   "logo": {
     "light": "/logo/logo-dark.png",
-    "dark": "/logo/logo-light.png"
+    "dark": "/logo/logo-light.png",
+    "width": 100
   },
   "favicon": "/favicon.svg",
   "metadata": {
+    "og:title": "MemWire — Self-hosted AI Memory Infrastructure",
+    "og:description": "Open source, graph-powered AI memory layer. Deploy on-premise with your own LLM and vector database. Zero vendor lock-in.",
     "og:image": "/images/og-image.png",
+    "twitter:title": "MemWire — Self-hosted AI Memory Infrastructure",
+    "twitter:description": "Open source, graph-powered AI memory layer. Deploy on-premise with your own LLM and vector database. Zero vendor lock-in.",
     "twitter:image": "/images/og-image.png",
     "twitter:card": "summary_large_image"
   },
