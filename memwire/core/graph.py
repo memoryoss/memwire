@@ -1,5 +1,6 @@
 """Displacement-based graph construction."""
 
+import threading
 import uuid
 from typing import Optional
 
@@ -18,10 +19,9 @@ class DisplacementGraph:
         self.qdrant_store = qdrant_store
         self.nodes: dict[str, GraphNode] = {}
         self.edges: dict[tuple[str, str], GraphEdge] = {}
-        # Adjacency list: node_id -> {neighbor_id: edge_key}
         self._adjacency: dict[str, dict[str, tuple[str, str]]] = {}
-        # Track dirty edges for incremental persistence
         self._dirty_edges: set[tuple[str, str]] = set()
+        self._dirty_lock = threading.Lock()
 
     def build_from_tokens(
         self,
@@ -120,11 +120,11 @@ class DisplacementGraph:
         """Add or update an edge between two nodes."""
         key = (min(source_id, target_id), max(source_id, target_id))
         if key in self.edges:
-            # Reinforce existing edge
             edge = self.edges[key]
             edge.weight = min(edge.weight + self.config.edge_reinforce_amount, self.config.edge_weight_max)
             edge.displacement_sim = max(edge.displacement_sim, disp_sim)
-            self._dirty_edges.add(key)
+            with self._dirty_lock:
+                self._dirty_edges.add(key)
             return edge
 
         edge = GraphEdge(
@@ -137,7 +137,8 @@ class DisplacementGraph:
         self.edges[key] = edge
         self._adjacency.setdefault(key[0], {})[key[1]] = key
         self._adjacency.setdefault(key[1], {})[key[0]] = key
-        self._dirty_edges.add(key)
+        with self._dirty_lock:
+            self._dirty_edges.add(key)
         return edge
 
     def add_edge(self, source_id: str, target_id: str, weight: float, disp_sim: float = 0.0) -> Optional[GraphEdge]:
@@ -149,17 +150,16 @@ class DisplacementGraph:
         self.edges[key] = edge
         self._adjacency.setdefault(key[0], {})[key[1]] = key
         self._adjacency.setdefault(key[1], {})[key[0]] = key
-        self._dirty_edges.add(key)
+        with self._dirty_lock:
+            self._dirty_edges.add(key)
         return edge
 
     def pop_dirty_edges(self) -> list[GraphEdge]:
-        """Return and clear all dirty edges for incremental persistence."""
-        # Snapshot + clear atomically to avoid "Set changed size during iteration"
-        # when add_edge() mutates _dirty_edges concurrently from another thread.
-        snapshot = set(self._dirty_edges)
-        self._dirty_edges -= snapshot
-        dirty = [self.edges[k] for k in snapshot if k in self.edges]
-        return dirty
+        """Atomically return and clear all dirty edges for persistence."""
+        with self._dirty_lock:
+            snapshot = self._dirty_edges
+            self._dirty_edges = set()
+        return [self.edges[k] for k in snapshot if k in self.edges]
 
     def get_neighbors(self, node_id: str) -> list[tuple[GraphNode, GraphEdge]]:
         """Get all neighbors of a node with their connecting edges."""
@@ -212,7 +212,8 @@ class DisplacementGraph:
             self.edges[key].weight = min(
                 self.edges[key].weight + amount, self.config.edge_weight_max
             )
-            self._dirty_edges.add(key)
+            with self._dirty_lock:
+                self._dirty_edges.add(key)
 
     def weaken_edge(self, source_id: str, target_id: str, amount: float) -> None:
         """Decrease edge weight, remove if below minimum."""
@@ -222,7 +223,8 @@ class DisplacementGraph:
             if self.edges[key].weight < self.config.edge_weight_min:
                 self._remove_edge(key)
             else:
-                self._dirty_edges.add(key)
+                with self._dirty_lock:
+                    self._dirty_edges.add(key)
 
     def decay_all(self) -> int:
         """Apply decay to all edges. Returns count of removed edges."""

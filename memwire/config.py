@@ -8,9 +8,15 @@ from typing import Optional
 class MemWireConfig:
     """All thresholds, model names, and defaults for the pipeline."""
 
-    # Embedding model
+    # Embedding provider: "fastembed" (local ONNX) or "openai-compatible" (Ollama, OpenAI, etc.)
+    embedding_provider: str = "fastembed"
     model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_dim: int = 384
+
+    # OpenAI-compatible provider settings (used when embedding_provider="openai-compatible")
+    embedding_api_url: str = "http://localhost:11434/v1"  # Ollama default
+    embedding_api_key: Optional[str] = None  # needed for OpenAI/cloud, not Ollama
+    embedding_model: str = "nomic-embed-text"  # model name sent to the API
 
     # FastEmbed / sparse / reranker models
     sparse_model_name: str = "prithivida/Splade_PP_en_v1"

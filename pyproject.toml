@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "memwire"
-version = "0.2.0"
+version = "0.3.0"
 description = "Enterprise-grade memory infrastructure for AI agents"
 license = {text = "Apache-2.0"}
 classifiers = ["License :: OSI Approved :: Apache Software License"]
@@ -20,6 +20,11 @@ dependencies = [
 include = ["memwire*"]
 
 [project.optional-dependencies]
+server = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+    "pydantic>=2.0.0",
+]
 chat = [
     "openai>=1.0.0",
     "python-dotenv>=1.0.0",
@@ -30,4 +35,5 @@ chat = [
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
+    "httpx>=0.24.0",
 ]

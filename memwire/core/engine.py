@@ -19,13 +19,10 @@ class MemoryEngine:
         self.graph = DisplacementGraph(config, qdrant_store=qdrant_store)
         self.classifier = AnchorClassifier(config)
 
-        # Initialize classifier with embedding function
         self.classifier.initialize(self.embeddings.embed_sentence)
 
-        # Memory storage (in-memory index, backed by DB)
         self._memories: dict[str, MemoryRecord] = {}
-        # Map memory_id -> node_ids for cross-linking
-        self._memory_nodes: dict[str, list[str]] = {}
+        self._memory_nodes: dict[str, list[str]] = {}  # memory_id -> node_ids
 
     def add_memory(
         self,
@@ -36,30 +33,28 @@ class MemoryEngine:
         org_id: str = "",
         app_id: str | None = None,
         workspace_id: str | None = None,
+        graph: "DisplacementGraph | None" = None,
+        memory_nodes: dict[str, list[str]] | None = None,
     ) -> MemoryRecord:
         """Process and store a new memory. Returns the MemoryRecord."""
+        target_graph = graph or self.graph
+        target_nodes = memory_nodes if memory_nodes is not None else self._memory_nodes
         memory_id = f"mem_{uuid.uuid4().hex[:12]}"
 
-        # Embed content directly
         sentence_embedding = self.embeddings.embed_sentence(content)
-
-        # Classify
         category, confidence = self.classifier.classify(sentence_embedding)
-
-        # Get token-level embeddings and build graph
         token_embeddings = self.embeddings.embed_tokens(content)
-        node_ids = self.graph.build_from_tokens(
+        node_ids = target_graph.build_from_tokens(
             token_embeddings, memory_id,
             user_id=user_id, app_id=app_id, workspace_id=workspace_id,
         )
 
-        # Cross-link with recent memories only (avoid O(M*T^2) for large histories)
-        recent_keys = list(self._memory_nodes.keys())[-self.config.cross_memory_recent_limit:]
+        # cross-link with recent memories only (scoped to the provided dict)
+        recent_keys = list(target_nodes.keys())[-self.config.cross_memory_recent_limit:]
         for existing_id in recent_keys:
             if existing_id != memory_id:
-                self.graph.merge_cross_memory_edges(node_ids, self._memory_nodes[existing_id])
+                target_graph.merge_cross_memory_edges(node_ids, target_nodes[existing_id])
 
-        # Create memory record
         record = MemoryRecord(
             memory_id=memory_id,
             user_id=user_id,
@@ -77,7 +72,7 @@ class MemoryEngine:
         )
 
         self._memories[memory_id] = record
-        self._memory_nodes[memory_id] = node_ids
+        target_nodes[memory_id] = node_ids
         return record
 
     def get_memory(self, memory_id: str) -> MemoryRecord | None:
@@ -88,32 +83,36 @@ class MemoryEngine:
         """Return all stored memories."""
         return list(self._memories.values())
 
-    def strengthen(self, memory_id: str, amount: float) -> None:
+    def strengthen(self, memory_id: str, amount: float, graph: "DisplacementGraph | None" = None, memory_nodes: dict[str, list[str]] | None = None) -> None:
         """Strengthen a memory and its graph edges."""
+        target_graph = graph or self.graph
+        target_nodes = memory_nodes if memory_nodes is not None else self._memory_nodes
         record = self._memories.get(memory_id)
         if not record:
             return
         record.strength = min(record.strength + amount, self.config.edge_weight_max)
-        # Strengthen edges between this memory's nodes
-        nodes = self._memory_nodes.get(memory_id, [])
+        nodes = target_nodes.get(memory_id, [])
         for i, nid_a in enumerate(nodes):
             for nid_b in nodes[i + 1:]:
-                self.graph.strengthen_edge(nid_a, nid_b, amount)
+                target_graph.strengthen_edge(nid_a, nid_b, amount)
 
-    def weaken(self, memory_id: str, amount: float) -> None:
+    def weaken(self, memory_id: str, amount: float, graph: "DisplacementGraph | None" = None, memory_nodes: dict[str, list[str]] | None = None) -> None:
         """Weaken a memory and its graph edges."""
+        target_graph = graph or self.graph
+        target_nodes = memory_nodes if memory_nodes is not None else self._memory_nodes
         record = self._memories.get(memory_id)
         if not record:
             return
         record.strength = max(record.strength - amount, 0.0)
-        nodes = self._memory_nodes.get(memory_id, [])
+        nodes = target_nodes.get(memory_id, [])
         for i, nid_a in enumerate(nodes):
             for nid_b in nodes[i + 1:]:
-                self.graph.weaken_edge(nid_a, nid_b, amount)
+                target_graph.weaken_edge(nid_a, nid_b, amount)
 
-    def decay_all(self) -> int:
+    def decay_all(self, graph: "DisplacementGraph | None" = None) -> int:
         """Apply decay to all graph edges. Returns count of removed edges."""
-        return self.graph.decay_all()
+        target_graph = graph or self.graph
+        return target_graph.decay_all()
 
     def load_memory(self, record: MemoryRecord) -> None:
         """Load a pre-existing memory record (e.g., from database)."""
