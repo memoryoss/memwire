@@ -80,7 +80,7 @@ if result.formatted:
 messages.append({"role": "user", "content": "How should I format my answers?"})
 
 # After you get the LLM response, reinforce the memory paths that were used
-memory.feedback(response="<assistant response here>", user_id=USER_ID)
+memory.feedback(assistant_response="<assistant response here>", user_id=USER_ID)
 
 # Search memories by keyword / semantic similarity
 hits = memory.search("dark mode", user_id=USER_ID, top_k=5)
@@ -129,7 +129,7 @@ docker compose up --build   # Qdrant + MemWire API on :8000
 #### Store memory
 
 ```bash
-curl -X POST http://localhost:8000/v1/memory \
+curl -X POST http://localhost:8000/v1/memories \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "alice",
@@ -142,10 +142,16 @@ curl -X POST http://localhost:8000/v1/memory \
 ```
 
 ```json
-{
-  "stored": 1,
-  "memory_ids": ["mem_3f7a1c2d9e4b"]
-}
+[
+  {
+    "memory_id": "mem_3f7a1c2d9e4b",
+    "user_id": "alice",
+    "content": "I prefer dark mode and short answers.",
+    "role": "user",
+    "category": "preference",
+    "strength": 1.0
+  }
+]
 ```
 
 ---
@@ -153,7 +159,7 @@ curl -X POST http://localhost:8000/v1/memory \
 #### Recall context
 
 ```bash
-curl -X POST http://localhost:8000/v1/memory/recall \
+curl -X POST http://localhost:8000/v1/memories/recall \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "alice",
@@ -165,13 +171,43 @@ curl -X POST http://localhost:8000/v1/memory/recall \
 
 ```json
 {
-  "context": "alice prefers dark mode and short answers.",
-  "paths": 2,
-  "knowledge": []
+  "query": "How should I format my answers?",
+  "supporting": [{ "tokens": ["dark", "mode"], "score": 0.87, "memories": [...] }],
+  "conflicting": [],
+  "knowledge": [],
+  "formatted": "alice prefers dark mode and short answers.",
+  "has_conflicts": false
 }
 ```
 
 ---
+
+#### Search memories
+
+```bash
+curl -X POST http://localhost:8000/v1/memories/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "alice",
+    "app_id": "app_a",
+    "workspace_id": "team_1",
+    "query": "dark mode",
+    "limit": 10
+  }'
+```
+
+```json
+[
+  {
+    "memory": {
+      "memory_id": "mem_3f7a1c2d9e4b",
+      "content": "I prefer dark mode and short answers.",
+      "category": "preference"
+    },
+    "score": 0.94
+  }
+]
+```
 
 See [API Reference](https://memwirelabs.ai/api-reference/introduction) for configuration options and local development setup.
 

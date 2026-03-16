@@ -19,7 +19,7 @@ with MemWireClient("http://localhost:8000", api_key="your-api-key") as client:
     print(f"Created knowledge base: {kb_id}")
 
     # search knowledge
-    chunks = client.search_knowledge("shipping costs", USER_ID, top_k=3)
+    chunks = client.search_knowledge("shipping costs", USER_ID, limit=3)
     print(f"\nKnowledge search results:")
     for chunk in chunks:
         print(f"  [{chunk.score:.2f}] {chunk.content}")

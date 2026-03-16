@@ -18,7 +18,7 @@ def test_feedback_strengthens_aligned_paths(memory):
 
     # Feedback with aligned response
     stats = memory.feedback(
-        response="Vendor A is your best choice for organic cotton clothing",
+        assistant_response="Vendor A is your best choice for organic cotton clothing",
         user_id=TEST_USER,
     )
     edges_after = {
@@ -40,7 +40,7 @@ def test_feedback_weakens_misaligned_paths(memory):
 
     # Feedback with completely different topic
     stats = memory.feedback(
-        response="The quarterly financial report shows a 20 percent increase in revenue",
+        assistant_response="The quarterly financial report shows a 20 percent increase in revenue",
         user_id=TEST_USER,
     )
     print(f"  Misaligned feedback: {stats}")
@@ -59,7 +59,7 @@ def test_feedback_dead_zone(memory):
     }
     # Response that's somewhat related but not strongly aligned
     stats = memory.feedback(
-        response="Software development requires careful planning and testing",
+        assistant_response="Software development requires careful planning and testing",
         user_id=TEST_USER,
     )
     edges_after = {
@@ -83,7 +83,7 @@ def test_repeated_feedback_accumulates(memory):
     weights_history = []
     for i in range(5):
         memory.recall("What is important about orders?", user_id=TEST_USER)
-        memory.feedback(response="Fast delivery is our top priority for customer satisfaction", user_id=TEST_USER)
+        memory.feedback(assistant_response="Fast delivery is our top priority for customer satisfaction", user_id=TEST_USER)
         total_weight = sum(e.weight for e in graph.edges.values())
         weights_history.append(total_weight)
 
@@ -93,5 +93,5 @@ def test_repeated_feedback_accumulates(memory):
 def test_feedback_without_recall_is_noop(memory):
     """Feedback without prior recall should do nothing."""
     memory.add(user_id=TEST_USER, messages=[{"role": "user", "content": "Test message for feedback"}])
-    stats = memory.feedback(response="Any response", user_id=TEST_USER)
+    stats = memory.feedback(assistant_response="Any response", user_id=TEST_USER)
     assert stats == {"strengthened": 0, "weakened": 0}

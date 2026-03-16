@@ -77,7 +77,7 @@ def test_entity_classification(memory):
 
 def test_custom_anchor_classification(memory):
     """Custom anchors should work for classification."""
-    memory.add_anchor("technical", "This is a technical specification or requirement", user_id=TEST_USER)
+    memory.add_category("technical", "This is a technical specification or requirement", user_id=TEST_USER)
     records = memory.add(user_id=TEST_USER, messages=[
         {"role": "user", "content": "The API must support TLS 1.3 encryption"},
         {"role": "user", "content": "Response latency should be under 200ms"},

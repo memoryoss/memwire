@@ -117,7 +117,7 @@ class TestFeedbackDeadZone:
             k: e.weight for k, e in graph.edges.items()
         }
         stats = memory.feedback(
-            response="Good software development practices include code review",
+            assistant_response="Good software development practices include code review",
             user_id=TEST_USER,
         )
         edges_after = {

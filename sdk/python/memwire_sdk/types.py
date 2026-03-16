@@ -40,7 +40,7 @@ class RecallResult:
     conflicting: list[RecallPath] = field(default_factory=list)
     knowledge: list[KnowledgeChunk] = field(default_factory=list)
     formatted: str = ""
-    has_tensions: bool = False
+    has_conflicts: bool = False
 
 
 @dataclass

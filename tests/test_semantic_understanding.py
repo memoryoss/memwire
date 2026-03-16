@@ -57,7 +57,7 @@ def test_negation_understanding(memory):
         for mem in path.memories:
             all_contents.add(mem.content)
     print(f"  Negation test: {all_contents}")
-    print(f"  Tensions detected: {result.has_tensions}")
+    print(f"  Conflicts detected: {result.has_conflicts}")
 
 
 def test_abstract_to_concrete_matching(memory):

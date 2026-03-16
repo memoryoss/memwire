@@ -33,7 +33,7 @@ def search_knowledge(body: SearchKnowledgeRequest, request: Request):
         agent_id=body.agent_id,
         app_id=body.app_id,
         workspace_id=body.workspace_id,
-        top_k=body.top_k,
+        top_k=body.limit,
     )
     return [
         {"chunk_id": c.chunk_id, "kb_id": c.kb_id, "content": c.content,

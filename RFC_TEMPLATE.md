@@ -49,7 +49,7 @@
 ```
 # Example endpoint or interface change
 
-POST /v1/memory/...
+POST /v1/memories/...
 {
   "field": "value"
 }

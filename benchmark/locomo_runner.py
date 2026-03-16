@@ -103,13 +103,14 @@ class BenchmarkRunner:
 
             # Fresh instance per conversation using localhost Qdrant + temp SQLite
             tmp_dir = tempfile.mkdtemp(prefix=f"locomo_conv{conv_idx}_")
+            user_id = f"locomo_conv{conv_idx}"
             cfg = MemWireConfig(
-                user_id=f"locomo_conv{conv_idx}",
                 qdrant_url="http://localhost:6333",
                 database_url=f"sqlite:///{tmp_dir}/meta.db",
                 qdrant_collection_prefix=f"bench{conv_idx}_",
             )
-            memory = MemWire(user_id=cfg.user_id, config=cfg)
+            memory = MemWire(config=cfg)
+            memory._bench_user_id = user_id  # stash for use in queries
         finally:
             sys.stderr = _stderr
             logging.disable(logging.NOTSET)
@@ -134,7 +135,7 @@ class BenchmarkRunner:
                 continue
 
             session_ts = session["timestamp"]
-            records = memory.add(chunks)
+            records = memory.add(user_id=memory._bench_user_id, messages=chunks)
 
             # Override timestamps with LOCOMO session dates
             for record in records:
@@ -142,7 +143,7 @@ class BenchmarkRunner:
 
             total_memories += len(records)
 
-        stats = memory.get_stats()
+        stats = memory.get_stats(user_id=memory._bench_user_id)
         stats["total_memories_ingested"] = total_memories
         memory._tmp_dir = tmp_dir  # stash for cleanup
         return memory, stats
@@ -159,7 +160,7 @@ class BenchmarkRunner:
             seen = set()
 
             # Graph-based recall (BFS through displacement graph)
-            recall_result = memory.recall(question)
+            recall_result = memory.recall(question, user_id=memory._bench_user_id)
             if recall_result.formatted:
                 context_parts.append(recall_result.formatted)
                 for line in recall_result.formatted.split("\n"):
@@ -168,7 +169,7 @@ class BenchmarkRunner:
                         seen.add(text)
 
             # Also do direct vector search for coverage
-            search_results = memory.search(question, top_k=self.config.search_top_k)
+            search_results = memory.search(question, user_id=memory._bench_user_id, top_k=self.config.search_top_k)
             for record, score in search_results:
                 if record.content not in seen:
                     seen.add(record.content)

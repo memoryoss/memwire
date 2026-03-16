@@ -93,7 +93,7 @@ class MemoryFormatter:
                 tag = f" [{source}]" if source else ""
                 lines.append(f"    - (score: {chunk.score:.3f}) {chunk.content}{tag}")
 
-        if result.has_tensions:
-            lines.append(f"\nTensions detected: {len(result.conflicting)} conflicting path(s)")
+        if result.has_conflicts:
+            lines.append(f"\nConflicts detected: {len(result.conflicting)} conflicting path(s)")
 
         return "\n".join(lines)

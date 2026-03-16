@@ -5,7 +5,7 @@ from fastapi import APIRouter, Request
 from ..schemas import (
     AddMemoryRequest, MemoryResponse,
     RecallRequest, RecallResponse, PathResponse,
-    SearchRequest, SearchResultResponse,
+    SearchRequest, SearchHitResponse,
     FeedbackRequest, FeedbackResponse,
 )
 
@@ -67,11 +67,11 @@ def recall_memories(body: RecallRequest, request: Request):
             for k in result.knowledge
         ],
         formatted=result.formatted,
-        has_tensions=result.has_tensions,
+        has_conflicts=result.has_conflicts,
     )
 
 
-@router.post("/search", response_model=list[SearchResultResponse])
+@router.post("/search", response_model=list[SearchHitResponse])
 def search_memories(body: SearchRequest, request: Request):
     memory = request.app.state.memory
     results = memory.search(
@@ -81,10 +81,10 @@ def search_memories(body: SearchRequest, request: Request):
         app_id=body.app_id,
         workspace_id=body.workspace_id,
         category=body.category,
-        top_k=body.top_k,
+        top_k=body.limit,
     )
     return [
-        SearchResultResponse(memory=_memory_to_response(rec), score=score)
+        SearchHitResponse(memory=_memory_to_response(rec), score=score)
         for rec, score in results
     ]
 
@@ -93,7 +93,7 @@ def search_memories(body: SearchRequest, request: Request):
 def feedback(body: FeedbackRequest, request: Request):
     memory = request.app.state.memory
     stats = memory.feedback(
-        body.response,
+        body.assistant_response,
         user_id=body.user_id,
         agent_id=body.agent_id,
         app_id=body.app_id,

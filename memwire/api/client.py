@@ -180,7 +180,7 @@ class MemWire:
 
     def feedback(
         self,
-        response: str,
+        assistant_response: str,
         *,
         user_id: str,
         agent_id: Optional[str] = None,
@@ -194,7 +194,7 @@ class MemWire:
             return {"strengthened": 0, "weakened": 0}
 
         graph = self._get_graph(user_id, app_id, workspace_id)
-        response_embedding = self.engine.embeddings.embed_sentence(response)
+        response_embedding = self.engine.embeddings.embed_sentence(assistant_response)
         stats = self.feedback_processor.process(
             response_embedding, last_recall, graph
         )
@@ -247,7 +247,7 @@ class MemWire:
 
         return results[:top_k]
 
-    def add_anchor(
+    def add_category(
         self,
         name: str,
         text: str,

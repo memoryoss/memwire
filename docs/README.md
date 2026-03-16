@@ -14,9 +14,9 @@ docs/
 ├── api-reference/
 │   ├── introduction.mdx       # REST API overview
 │   └── endpoint/
-│       ├── store.mdx          # POST /v1/memory
-│       ├── recall.mdx         # POST /v1/memory/recall
-│       └── search.mdx         # POST /v1/memory/search
+│       ├── store.mdx          # POST /v1/memories
+│       ├── recall.mdx         # POST /v1/memories/recall
+│       └── search.mdx         # POST /v1/memories/search
 
 examples/
 ├── chat.py                    # Terminal chat demo (OpenAI)

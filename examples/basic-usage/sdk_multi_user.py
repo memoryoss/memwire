@@ -24,5 +24,5 @@ with MemWireClient("http://localhost:8000", api_key="your-api-key") as client:
     print(f"  {bob_recall.formatted or 'No memories yet'}\n")
 
     # stats are scoped per user
-    print(f"Alice stats: {client.stats('alice')}")
-    print(f"Bob stats: {client.stats('bob')}")
+    print(f"Alice stats: {client.get_stats('alice')}")
+    print(f"Bob stats: {client.get_stats('bob')}")
