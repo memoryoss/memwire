@@ -156,6 +156,110 @@
         }
       }
     },
+    "/v1/knowledge": {
+      "post": {
+        "summary": "Add knowledge base",
+        "description": "Ingest a named knowledge base of document chunks. Chunks are embedded and indexed for semantic search and recall.",
+        "operationId": "add_knowledge",
+        "tags": ["Knowledge"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AddKnowledgeRequest" },
+              "example": {
+                "user_id": "alice",
+                "name": "Company Handbook",
+                "chunks": [
+                  { "content": "All employees must complete onboarding within 30 days." },
+                  { "content": "Remote work is allowed up to 3 days per week." }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Knowledge base created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AddKnowledgeResponse" },
+                "example": { "kb_id": "kb_3f7a1c2d9e4b", "chunks_stored": 2 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/knowledge/search": {
+      "post": {
+        "summary": "Search knowledge",
+        "description": "Search knowledge base chunks by semantic similarity using hybrid dense+sparse retrieval.",
+        "operationId": "search_knowledge",
+        "tags": ["Knowledge"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/KnowledgeSearchRequest" },
+              "example": {
+                "user_id": "alice",
+                "query": "remote work policy",
+                "top_k": 5
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Matching knowledge chunks",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/KnowledgeSearchResponse" },
+                "example": {
+                  "chunks": [
+                    {
+                      "chunk_id": "kb_3f7a1c2d9e4b_chunk_1",
+                      "kb_id": "kb_3f7a1c2d9e4b",
+                      "content": "Remote work is allowed up to 3 days per week.",
+                      "score": 0.92
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/knowledge/{kb_id}": {
+      "delete": {
+        "summary": "Delete knowledge base",
+        "description": "Delete a knowledge base and all its chunks by kb_id.",
+        "operationId": "delete_knowledge",
+        "tags": ["Knowledge"],
+        "parameters": [
+          {
+            "name": "kb_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "The knowledge base ID returned when the KB was created."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Knowledge base deleted",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DeleteKnowledgeResponse" },
+                "example": { "deleted": true }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health check",
@@ -394,6 +498,80 @@
             "type": "string",
             "example": "ok"
           }
+        }
+      },
+      "KnowledgeChunkInput": {
+        "type": "object",
+        "required": ["content"],
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "The text content of this chunk."
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Optional metadata (e.g. source, page number).",
+            "additionalProperties": true
+          }
+        }
+      },
+      "AddKnowledgeRequest": {
+        "type": "object",
+        "required": ["user_id", "name", "chunks"],
+        "properties": {
+          "user_id": { "type": "string", "description": "User identifier." },
+          "name": { "type": "string", "description": "Human-readable name for the knowledge base." },
+          "chunks": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/KnowledgeChunkInput" },
+            "description": "List of document chunks to ingest."
+          },
+          "agent_id": { "type": "string", "nullable": true },
+          "app_id": { "type": "string", "nullable": true },
+          "workspace_id": { "type": "string", "nullable": true }
+        }
+      },
+      "AddKnowledgeResponse": {
+        "type": "object",
+        "properties": {
+          "kb_id": { "type": "string", "description": "The ID of the created knowledge base." },
+          "chunks_stored": { "type": "integer", "description": "Number of chunks ingested." }
+        }
+      },
+      "KnowledgeSearchRequest": {
+        "type": "object",
+        "required": ["user_id", "query"],
+        "properties": {
+          "user_id": { "type": "string" },
+          "query": { "type": "string", "description": "Natural-language search query." },
+          "agent_id": { "type": "string", "nullable": true },
+          "app_id": { "type": "string", "nullable": true },
+          "workspace_id": { "type": "string", "nullable": true },
+          "top_k": { "type": "integer", "default": 5, "description": "Number of chunks to return." }
+        }
+      },
+      "KnowledgeChunkResult": {
+        "type": "object",
+        "properties": {
+          "chunk_id": { "type": "string" },
+          "kb_id": { "type": "string" },
+          "content": { "type": "string" },
+          "score": { "type": "number", "format": "float", "description": "Similarity score between 0 and 1." }
+        }
+      },
+      "KnowledgeSearchResponse": {
+        "type": "object",
+        "properties": {
+          "chunks": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/KnowledgeChunkResult" }
+          }
+        }
+      },
+      "DeleteKnowledgeResponse": {
+        "type": "object",
+        "properties": {
+          "deleted": { "type": "boolean", "description": "True if the knowledge base was deleted." }
         }
       }
     }

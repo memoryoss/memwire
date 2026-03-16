@@ -3,6 +3,12 @@
   "theme": "mint",
   "name": "MemWire",
   "openapi": "api-reference/openapi.json",
+  "api": {
+    "baseUrl": "http://localhost:8000",
+    "playground": {
+      "mode": "simple"
+    }
+  },
   "colors": {
     "primary": "#6366f1",
     "light": "#818cf8",
@@ -95,6 +101,14 @@
               "api-reference/endpoint/store",
               "api-reference/endpoint/recall",
               "api-reference/endpoint/search"
+            ]
+          },
+          {
+            "group": "Knowledge",
+            "pages": [
+              "api-reference/endpoint/knowledge-add",
+              "api-reference/endpoint/knowledge-search",
+              "api-reference/endpoint/knowledge-delete"
             ]
           },
           {
