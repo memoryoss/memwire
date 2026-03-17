@@ -27,12 +27,12 @@ MemWire aims to become:
 
 | Feature | Description | Status | Priority |
 | --- | --- | --- | --- |
-| Memory Store | PostgreSQL and QDrant based structured memory schema | 🚧 | High |
-| Vector Pipeline | Embedding-only mode (no LLM required) | 🟡 | High |
-| REST API | Store, retrieve and search endpoints | 🚧 | High |
-| Multi-Tenant Support | `app_id`, `user_id`, `workspace_id` isolation | 🟡 | High |
-| Explicit Fact Recording | Structured fact memory model | 🟡 | High |
-| Docker Deployment | Local-first setup | 🟡 | High |
+| Memory Store | SQLite + Qdrant backed structured memory schema | ✅ | High |
+| Vector Pipeline | Embedding-only mode (no LLM required) | ✅ | High |
+| REST API | Store, recall, search, and knowledge endpoints | ✅ | High |
+| Multi-Tenant Support | `app_id`, `user_id`, `workspace_id` isolation | ✅ | High |
+| Explicit Fact Recording | Structured fact memory model with 5 categories | ✅ | High |
+| Docker Deployment | Local-first setup via docker compose | ✅ | High |
 | Ollama Support | Local embeddings & LLM support | 🟡 | Medium |
 
 ---
@@ -43,12 +43,18 @@ MemWire aims to become:
 
 | Feature | Description | Status | Priority |
 | --- | --- | --- | --- |
+| LLM-Free Classification | Anchor-based category classification, no LLM call | ✅ | High |
+| Knowledge Ingestion | Document chunks ingested via SDK and REST API | ✅ | High |
+| File-Based Knowledge Ingestion | Ingest PDF, Excel, CSV, DOCX, and other file types directly into knowledge bases | 🟡 | High |
+| Graph-Based Recall | BFS traversal of displacement graph for context recall | ✅ | High |
+| Hybrid Search | Dense + sparse (SPLADE) retrieval via Qdrant | ✅ | High |
+| Cross-Encoder Reranker | Optional FastEmbed cross-encoder rescoring | ✅ | High |
+| Adaptive Feedback Loop | Graph edge weights updated from LLM responses | ✅ | High |
+| Memory Metadata | 5 categories: fact, preference, instruction, event, entity | ✅ | Medium |
+| Python SDK | Developer-friendly integration | ✅ | High |
 | Agentic Fact Extraction | LLM-based structured memory extraction | 💡 | High |
-| Knowledge Ingestion | PDF / DOCX / URL ingestion | 🟡 | High |
-| Context Assembly Engine | Ranking + relevance scoring | 💡 | High |
+| Context Assembly Engine | Advanced ranking + relevance scoring | 💡 | High |
 | Fact Merging | Deduplication & updates | 💡 | Medium |
-| Memory Metadata | Tags, categories, custom instructions | 🟡 | Medium |
-| Python SDK | Developer-friendly integration | 🟡 | High |
 | Basic Dashboard | Memory inspection UI | 🤝 | Medium |
 
 ---
@@ -59,9 +65,9 @@ MemWire aims to become:
 
 | Feature | Description | Status | Priority |
 | --- | --- | --- | --- |
-| Memory Ranking Engine | Intelligent scoring | 💡 | High |
-| Memory Decay Policies | Relevance aging | 💡 | Medium |
-| Conflict Resolution | Fact versioning | 💡 | Medium |
+| Memory Ranking Engine | Intelligent scoring with cross-encoder reranker | ✅ | High |
+| Memory Decay Policies | Graph edge decay over time | ✅ | Medium |
+| Conflict Resolution | Tension detection and feedback-driven resolution | ✅ | Medium |
 | Prompt Budget Optimization | Reduce token waste | 💡 | High |
 | Memory Analytics | Usage insights | 🤝 | Medium |
 | Debug Mode | Inspect context assembly | 🤝 | Medium |
@@ -85,10 +91,10 @@ MemWire aims to become:
 
 | Database | Type | Purpose | Status |
 | --- | --- | --- | --- |
-| PostgreSQL | Relational | Primary SQL memory store | 🚧 |
-| pgvector | Extension | Vector indexing | 🚧 |
+| PostgreSQL | Relational | Primary SQL memory store | � |
+| pgvector | Extension | Vector indexing | 🟡 |
 | MySQL | Relational | Optional SQL backend | 💡 |
-| SQLite | Embedded | Lightweight local mode | 💡 |
+| SQLite | Embedded | Lightweight local mode | ✅ |
 | Neon | Serverless Postgres | Cloud-native Postgres | 💡 |
 
 ---
@@ -97,8 +103,8 @@ MemWire aims to become:
 
 | Provider | Type | Use Case | Status |
 | --- | --- | --- | --- |
-| pgvector | Embedded | Default vector index | 🚧 |
-| Qdrant | External | High-scale vector search | 💡 |
+| Qdrant | External | High-scale hybrid vector search | ✅ |
+| pgvector | Embedded | Default vector index | 🟡 |
 | Weaviate | External | Hybrid vector search | 💡 |
 | Pinecone | Managed | SaaS vector DB | 💡 |
 | Milvus | Distributed | Large-scale deployments | 💡 |
@@ -120,12 +126,13 @@ MemWire aims to become:
 
 | Provider | Mode | Status |
 | --- | --- | --- |
+| FastEmbed | Local | ✅ |
 | Ollama | Local | 🟡 |
-| OpenAI | Cloud | 💡 |
+| OpenAI | Cloud | ✅ |
+| Azure OpenAI | Enterprise | ✅ |
 | Anthropic | Cloud | 💡 |
 | Gemini | Cloud | 💡 |
 | Pydantic AI | Abstraction layer | 💡 |
-| Azure OpenAI | Enterprise | 💡 |
 
 ---
 
@@ -135,6 +142,7 @@ MemWire is framework-agnostic.
 
 | Framework | Integration Type | Example Use Case | Status |
 | --- | --- | --- | --- |
+| MCP (Model Context Protocol) | Expose MemWire as an MCP server so any MCP-compatible agent or IDE can store and recall memory | 🟡 | High |
 | LangChain | Memory backend | Replace ConversationBufferMemory | 💡 |
 | CrewAI | Persistent agent memory | Long-lived agents | 💡 |
 | Agno | Memory provider | Structured fact memory | 💡 |
@@ -149,11 +157,11 @@ MemWire is framework-agnostic.
 | Feature | Description | Status |
 | --- | --- | --- |
 | CI/CD | Automated tests & linting | 🟡 |
-| Test Coverage | Unit + integration tests | 🟡 |
-| OpenAPI Docs | Swagger documentation | 🟡 |
+| Test Coverage | Unit + integration tests | ✅ |
+| OpenAPI Docs | Swagger / Mintlify docs with interactive playground | ✅ |
 | Helm Charts | Kubernetes deployment | 🤝 |
 | Terraform Examples | Cloud deployment | 🤝 |
-| Example Chat App | Demo integration | 🟡 |
+| Example Chat App | Demo integration | ✅ |
 
 ---
 

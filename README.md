@@ -10,6 +10,7 @@
 ![Customizable](https://img.shields.io/badge/Customizable-Fully-green)
 ![Model-Agnostic](https://img.shields.io/badge/Model--Agnostic-Any%20LLM-orange)
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white)](https://discord.gg/pGeS7CCcem)
 
 ## What is MemWire?
 
@@ -207,4 +208,4 @@ PRs and issues are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) and [GOVERNAN
 
 ## License
 
-Apache License 2.0
+[Apache License 2.0](LICENSE)
