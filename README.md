@@ -15,16 +15,15 @@
 
 MemWire is **an open source & enterprise-ready** AI memory infrastructure layer. MemWire gives your AI applications persistent, auditable memory with structured, updatable facts, **fastest** semantic retrieval across conversations and knowledge using **graph-based memory**.
 
-- Fully customizable — adapt schemas, memory types, and pipelines to your use case
+- [Fully customizable](https://memwirelabs.ai/configuration) — adapt schemas, memory types, and pipelines to your use case
 - Self-hosted — run entirely on your local machine, on-premise or in your own cloud
-- Multi-tenant — isolate applications, users, and workspaces securely
+- [Multi-tenant](https://memwirelabs.ai/features/multi-tenancy) — isolate applications, users, and workspaces securely
 - Bring your own database — PostgreSQL pgvector, Qdrant, Pinecone, ChromaDB, Weawiate or your preferred stack
 - Bring your own LLM — OpenAI, Anthropic, Gemini, Ollama, or any provider
 - Deploy anywhere — edge, private cloud, public cloud, air-gapped environments
-- Knowledge ingestion — ingest documents (PDF, Excel, CSV, etc.) alongside conversation memory; recalled together at query time
+- [Knowledge ingestion](https://memwirelabs.ai/features/knowledge-base) — ingest documents (PDF, Excel, CSV, etc.) alongside conversation memory; recalled together at query time
 - Auditable — every memory is traceable, categorized (fact, preference, instruction, event, entity), and inspectable
-- Contradiction detection — conflicting memories are automatically flagged, so your agent always reasons from a consistent state
-- Feedback loop — reinforce memory paths that led to good responses; unused edges decay over time
+- [Feedback loop](https://memwirelabs.ai/features/adaptive-feedback) — reinforce memory paths that led to good responses; unused edges decay over time
 
 ---
 
@@ -124,8 +123,6 @@ cd api
 docker compose up --build   # Qdrant + MemWire API on :8000
 ```
 
-Interactive docs: **http://localhost:8000/docs**
-
 ---
 
 #### Store memory
@@ -175,83 +172,11 @@ curl -X POST http://localhost:8000/v1/memory/recall \
 
 ---
 
-#### Search memories
-
-```bash
-curl -X POST http://localhost:8000/v1/memory/search \
-  -H "Content-Type: application/json" \
-  -d '{
-    "user_id": "alice",
-    "app_id": "app_a",
-    "workspace_id": "team_1",
-    "query": "dark mode",
-    "top_k": 10
-  }'
-```
-
-```json
-{
-  "results": [
-    {
-      "memory_id": "mem_3f7a1c2d9e4b",
-      "content": "I prefer dark mode and short answers.",
-      "category": "preference",
-      "score": 0.94
-    }
-  ]
-}
-```
-
-See [api/README.md](api/README.md) for configuration options and local development setup.
+See [API Reference](https://memwirelabs.ai/api-reference/introduction) for configuration options and local development setup.
 
 ## Customization
 
-MemWire is designed to be a building block. Everything is tunable via `MemWireConfig`:
-
-```python
-config = MemWireConfig(
-    # --- Embedding ---
-    model_name="BAAI/bge-small-en-v1.5",   # swap the dense embedding model
-    embedding_dim=384,
-
-    # --- Storage ---
-    org_id="my_org",                        # organisation identifier (multi-tenant)
-    database_url="sqlite:///memory.db",     # SQLAlchemy URL; defaults to sqlite:///memwire_<org_id>.db
-
-    # Use Qdrant Cloud instead of local
-    qdrant_url="https://your-cluster.qdrant.io",
-    qdrant_api_key="...",
-    qdrant_collection_prefix="myapp_",
-
-    # --- Search quality ---
-    use_hybrid_search=True,     # dense + sparse (SPLADE) retrieval
-    use_reranking=True,         # cross-encoder reranking for higher precision
-    reranker_model_name="Xenova/ms-marco-MiniLM-L-6-v2",
-
-    # --- Recall tuning ---
-    recall_min_relevance=0.3,   # raise to be more selective (default 0.25)
-    recall_max_paths=10,        # max memory paths returned
-    recall_max_depth=4,         # BFS depth in the displacement graph
-    tension_threshold=0.6,      # lower to catch contradictions earlier
-    recency_weight=0.3,         # how much recency boosts recall score
-    recency_halflife=7200.0,    # seconds before a memory's recency score halves
-
-    # --- Graph construction ---
-    displacement_threshold=0.15,   # minimum displacement to create a graph edge
-    node_merge_similarity=0.85,    # cosine threshold for deduplicating nodes
-
-    # --- Feedback loop ---
-    feedback_strengthen_rate=0.1,  # how much a good response reinforces edges
-    feedback_weaken_rate=0.05,     # how much unused edges decay
-
-    # --- Memory classification ---
-    # Extend or replace the built-in categories (fact, preference, instruction, event, entity)
-    default_anchors={
-        "product_feedback": ["The user complained about X", "They liked feature Y"],
-        "tone": ["Always respond formally", "Use emojis"],
-    },
-)
-```
+All MemWire behaviour is controlled through `MemWireConfig`. Choose your vector store, embedding model, and LLM provider, then tune recall and graph settings to fit your use case. [Learn more](https://memwirelabs.ai/configuration).
 
 ## Supported databases
 
