@@ -19,10 +19,10 @@ Interactive docs: **http://localhost:8000/docs**
 
 ## Store memory
 
-`POST /v1/memory`
+`POST /v1/memories`
 
 ```bash
-curl -X POST http://localhost:8000/v1/memory \
+curl -X POST http://localhost:8000/v1/memories \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "alice",
@@ -35,35 +35,43 @@ curl -X POST http://localhost:8000/v1/memory \
 ```
 
 ```json
-{
-  "stored": 1,
-  "memory_ids": ["mem_3f7a1c2d9e4b"]
-}
+[
+  {
+    "memory_id": "mem_3f7a1c2d9e4b",
+    "user_id": "alice",
+    "content": "I prefer dark mode and short answers.",
+    "role": "user",
+    "category": "preference",
+    "strength": 1.0
+  }
+]
 ```
 
 ---
 
 ## Recall context
 
-`POST /v1/memory/recall`
+`POST /v1/memories/recall`
 
 ```bash
-curl -X POST http://localhost:8000/v1/memory/recall \
+curl -X POST http://localhost:8000/v1/memories/recall \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "alice",
     "app_id": "app_a",
     "workspace_id": "team_1",
-    "query": "How should I format my answers?",
-    "top_k": 5
+    "query": "How should I format my answers?"
   }'
 ```
 
 ```json
 {
-  "context": "alice prefers dark mode and short answers.",
-  "paths": 2,
-  "knowledge": []
+  "query": "How should I format my answers?",
+  "supporting": [{ "tokens": ["dark", "mode"], "score": 0.87, "memories": [...] }],
+  "conflicting": [],
+  "knowledge": [],
+  "formatted": "alice prefers dark mode and short answers.",
+  "has_conflicts": false
 }
 ```
 
@@ -71,27 +79,27 @@ curl -X POST http://localhost:8000/v1/memory/recall \
 
 ## Search memories
 
-`POST /v1/memory/search`
+`POST /v1/memories/search`
 
 ```bash
-curl -X POST http://localhost:8000/v1/memory/search \
+curl -X POST http://localhost:8000/v1/memories/search \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "alice",
     "query": "dark mode",
-    "top_k": 10
+    "limit": 10
   }'
 ```
 
 ```json
-{
-  "results": [
-    {
+[
+  {
+    "memory": {
       "memory_id": "mem_3f7a1c2d9e4b",
       "content": "I prefer dark mode and short answers.",
-      "category": "preference",
-      "score": 0.94
-    }
-  ]
-}
+      "category": "preference"
+    },
+    "score": 0.94
+  }
+]
 ```

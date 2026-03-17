@@ -12,7 +12,7 @@ def test_direct_contradiction(memory):
     result = memory.recall("Does the user like spicy food?", user_id=TEST_USER)
     print(f"  Direct contradiction: {len(result.supporting)} supporting, "
           f"{len(result.conflicting)} conflicting")
-    print(f"  has_tensions: {result.has_tensions}")
+    print(f"  has_conflicts: {result.has_conflicts}")
 
 
 def test_preference_change_over_time(memory):
@@ -29,7 +29,7 @@ def test_preference_change_over_time(memory):
         for mem in path.memories:
             all_contents.add(mem.content)
     print(f"  Preference change: {all_contents}")
-    print(f"  Tensions: {result.has_tensions}")
+    print(f"  Conflicts: {result.has_conflicts}")
 
 
 def test_subtle_contradiction(memory):
@@ -44,7 +44,7 @@ def test_subtle_contradiction(memory):
         for mem in path.memories:
             all_contents.add(mem.content)
     print(f"  Subtle contradiction: {all_contents}")
-    print(f"  Tensions: {result.has_tensions}")
+    print(f"  Conflicts: {result.has_conflicts}")
 
 
 def test_no_tension_for_complementary_info(memory):
@@ -71,7 +71,7 @@ def test_numeric_contradiction(memory):
         for mem in path.memories:
             all_contents.add(mem.content)
     print(f"  Numeric contradiction: {all_contents}")
-    print(f"  Tensions: {result.has_tensions}")
+    print(f"  Conflicts: {result.has_conflicts}")
 
 
 def test_partially_overlapping_info(memory):
@@ -87,4 +87,4 @@ def test_partially_overlapping_info(memory):
         for mem in path.memories:
             all_contents.add(mem.content)
     print(f"  Partial overlap: {all_contents}")
-    print(f"  Tensions: {result.has_tensions}")
+    print(f"  Conflicts: {result.has_conflicts}")

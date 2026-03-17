@@ -49,7 +49,7 @@ def chat(user_input: str) -> str:
         {"role": "user", "content": user_input},
         {"role": "assistant", "content": response},
     ])
-    memory.feedback(response, USER_ID)
+    memory.feedback(response, USER_ID)  # pass LLM output to reinforce paths
 
     return response
 

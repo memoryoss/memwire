@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Request
 
-from ..schemas import HealthResponse, StatsRequest, StatsResponse, AddAnchorRequest
+from ..schemas import HealthResponse, StatsRequest, StatsResponse, AddCategoryRequest
 
 router = APIRouter(tags=["system"])
 
@@ -25,14 +25,14 @@ def stats(body: StatsRequest, request: Request):
     return StatsResponse(**result)
 
 
-@router.post("/v1/anchors")
-def add_anchor(body: AddAnchorRequest, request: Request):
+@router.post("/v1/categories")
+def add_category(body: AddCategoryRequest, request: Request):
     memory = request.app.state.memory
-    memory.add_anchor(
+    memory.add_category(
         body.name,
         body.text,
         user_id=body.user_id,
         app_id=body.app_id,
         workspace_id=body.workspace_id,
     )
-    return {"status": "ok", "anchor": body.name}
+    return {"status": "ok", "category": body.name}

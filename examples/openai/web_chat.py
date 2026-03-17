@@ -183,7 +183,7 @@ async def api_chat(request: Request):
 
         # 6. Feedback with timing
         t0 = time.perf_counter()
-        feedback = await run_sync(lambda: memory.feedback(response=assistant_msg, user_id=USER_ID))
+        feedback = await run_sync(lambda: memory.feedback(assistant_response=assistant_msg, user_id=USER_ID))
         t_feedback = time.perf_counter() - t0
 
         # 7. Final stats + all timing

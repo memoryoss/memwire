@@ -34,18 +34,18 @@ class SearchRequest(BaseModel):
     app_id: Optional[str] = None
     workspace_id: Optional[str] = None
     category: Optional[str] = None
-    top_k: int = Field(default=10, ge=1, le=100)
+    limit: int = Field(default=10, ge=1, le=100)
 
 
 class FeedbackRequest(BaseModel):
-    response: str
+    assistant_response: str
     user_id: str
     agent_id: Optional[str] = None
     app_id: Optional[str] = None
     workspace_id: Optional[str] = None
 
 
-class AddAnchorRequest(BaseModel):
+class AddCategoryRequest(BaseModel):
     name: str
     text: str
     user_id: str
@@ -73,7 +73,7 @@ class SearchKnowledgeRequest(BaseModel):
     agent_id: Optional[str] = None
     app_id: Optional[str] = None
     workspace_id: Optional[str] = None
-    top_k: int = Field(default=5, ge=1, le=100)
+    limit: int = Field(default=5, ge=1, le=100)
 
 
 class StatsRequest(BaseModel):
@@ -109,10 +109,10 @@ class RecallResponse(BaseModel):
     conflicting: list[PathResponse]
     knowledge: list[dict]
     formatted: str
-    has_tensions: bool
+    has_conflicts: bool
 
 
-class SearchResultResponse(BaseModel):
+class SearchHitResponse(BaseModel):
     memory: MemoryResponse
     score: float
 

@@ -52,7 +52,7 @@ if result.formatted:
 messages.append({"role": "user", "content": "How should I format my answers?"})
 
 # After you get the LLM response, reinforce the memory paths that were used
-memory.feedback(response="<assistant response here>", user_id=USER_ID)
+memory.feedback(assistant_response="<assistant response here>", user_id=USER_ID)
 
 # Search memories by keyword / semantic similarity
 hits = memory.search("dark mode", user_id=USER_ID, top_k=5)
@@ -82,7 +82,6 @@ config = MemWireConfig(
 )
 memory = MemWire(config=config)
 ```
-
 
 
 ---

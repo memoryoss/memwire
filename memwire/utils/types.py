@@ -106,7 +106,7 @@ class RecallResult:
     formatted: str = ""
 
     @property
-    def has_tensions(self) -> bool:
+    def has_conflicts(self) -> bool:
         return len(self.conflicting) > 0
 
     @property

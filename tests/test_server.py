@@ -74,7 +74,7 @@ def test_feedback(client):
         "user_id": "fb_user",
     })
     resp = client.post("/v1/memories/feedback", json={
-        "response": "You mentioned you like coffee",
+        "assistant_response": "You mentioned you like coffee",
         "user_id": "fb_user",
     })
     assert resp.status_code == 200
@@ -121,11 +121,11 @@ def test_knowledge_rejects_invalid_chunks(client):
     assert resp.status_code == 422
 
 
-def test_anchors(client):
-    resp = client.post("/v1/anchors", json={
+def test_categories(client):
+    resp = client.post("/v1/categories", json={
         "name": "custom_category",
-        "text": "This is a test anchor",
-        "user_id": "anchor_user",
+        "text": "This is a test category",
+        "user_id": "category_user",
     })
     assert resp.status_code == 200
 

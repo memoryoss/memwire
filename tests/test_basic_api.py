@@ -58,13 +58,13 @@ def test_recall_on_empty_memory(memory):
 
 
 def test_feedback_without_prior_recall(memory):
-    stats = memory.feedback(response="some response", user_id=TEST_USER)
+    stats = memory.feedback(assistant_response="some response", user_id=TEST_USER)
     assert stats == {"strengthened": 0, "weakened": 0}
 
 
 def test_feedback_after_recall(seeded_memory):
     seeded_memory.recall("organic materials", user_id=TEST_USER)
-    stats = seeded_memory.feedback(response="We should use organic cotton from Vendor A", user_id=TEST_USER)
+    stats = seeded_memory.feedback(assistant_response="We should use organic cotton from Vendor A", user_id=TEST_USER)
     assert "strengthened" in stats
     assert "weakened" in stats
 
@@ -85,13 +85,13 @@ def test_search_with_category_filter(seeded_memory):
     assert len(results_all) > 0
 
 
-def test_search_top_k(seeded_memory):
+def test_search_limit(seeded_memory):
     results = seeded_memory.search("budget", user_id=TEST_USER, top_k=2)
     assert len(results) <= 2
 
 
-def test_add_anchor(memory):
-    memory.add_anchor("pricing", "This is about product pricing and costs", user_id=TEST_USER)
+def test_add_category(memory):
+    memory.add_category("pricing", "This is about product pricing and costs", user_id=TEST_USER)
     anchors = memory.engine.classifier.get_anchors()
     assert "pricing" in anchors
 

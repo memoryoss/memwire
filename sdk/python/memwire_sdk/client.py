@@ -75,7 +75,7 @@ class MemWireClient:
         app_id: Optional[str] = None,
         workspace_id: Optional[str] = None,
         category: Optional[str] = None,
-        top_k: int = 10,
+        limit: int = 10,
     ) -> list[SearchResult]:
         data = self._request("POST", "/v1/memories/search", json={
             "query": query,
@@ -84,7 +84,7 @@ class MemWireClient:
             "app_id": app_id,
             "workspace_id": workspace_id,
             "category": category,
-            "top_k": top_k,
+            "limit": limit,
         })
         return [
             SearchResult(memory=MemoryRecord(**r["memory"]), score=r["score"])
@@ -93,7 +93,7 @@ class MemWireClient:
 
     def feedback(
         self,
-        response: str,
+        assistant_response: str,
         user_id: str,
         *,
         agent_id: Optional[str] = None,
@@ -101,7 +101,7 @@ class MemWireClient:
         workspace_id: Optional[str] = None,
     ) -> dict:
         return self._request("POST", "/v1/memories/feedback", json={
-            "response": response,
+            "assistant_response": assistant_response,
             "user_id": user_id,
             "agent_id": agent_id,
             "app_id": app_id,
@@ -136,7 +136,7 @@ class MemWireClient:
         agent_id: Optional[str] = None,
         app_id: Optional[str] = None,
         workspace_id: Optional[str] = None,
-        top_k: int = 5,
+        limit: int = 5,
     ) -> list[KnowledgeChunk]:
         data = self._request("POST", "/v1/knowledge/search", json={
             "query": query,
@@ -144,14 +144,14 @@ class MemWireClient:
             "agent_id": agent_id,
             "app_id": app_id,
             "workspace_id": workspace_id,
-            "top_k": top_k,
+            "limit": limit,
         })
         return [KnowledgeChunk(**c) for c in data]
 
     def delete_knowledge(self, kb_id: str, user_id: str) -> None:
         self._request("DELETE", f"/v1/knowledge/{kb_id}", params={"user_id": user_id})
 
-    def add_anchor(
+    def add_category(
         self,
         name: str,
         text: str,
@@ -160,7 +160,7 @@ class MemWireClient:
         app_id: Optional[str] = None,
         workspace_id: Optional[str] = None,
     ) -> None:
-        self._request("POST", "/v1/anchors", json={
+        self._request("POST", "/v1/categories", json={
             "name": name,
             "text": text,
             "user_id": user_id,
@@ -168,7 +168,7 @@ class MemWireClient:
             "workspace_id": workspace_id,
         })
 
-    def stats(
+    def get_stats(
         self,
         user_id: str,
         *,
@@ -220,5 +220,5 @@ class MemWireClient:
             conflicting=conflicting,
             knowledge=knowledge,
             formatted=data.get("formatted", ""),
-            has_tensions=data.get("has_tensions", False),
+            has_conflicts=data.get("has_conflicts", False),
         )

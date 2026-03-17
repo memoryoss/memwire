@@ -19,21 +19,21 @@ result = client.recall("How should I format responses?", USER_ID)
 print(f"\nRecall ({len(result.supporting)} paths):")
 print(result.formatted)
 
-if result.has_tensions:
+if result.has_conflicts:
     print(f"Conflicts detected: {len(result.conflicting)} paths")
 
 # search by similarity
-results = client.search("programming preferences", USER_ID, top_k=5)
+results = client.search("programming preferences", USER_ID, limit=5)
 print(f"\nSearch results:")
 for r in results:
     print(f"  [{r.score:.2f}] {r.memory.content}")
 
 # feedback to reinforce good recall paths
-client.feedback("I'll use dark mode and keep it concise in Python", USER_ID)
+client.feedback("I'll use dark mode and keep it concise in Python", USER_ID)  # pass LLM output
 print("\nFeedback applied")
 
 # check stats
-stats = client.stats(USER_ID)
+stats = client.get_stats(USER_ID)
 print(f"\nStats: {stats}")
 
 client.close()

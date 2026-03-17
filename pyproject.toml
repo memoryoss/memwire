@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "memwire"
-version = "0.3.0"
+version = "0.1.0"
 description = "Enterprise-grade memory infrastructure for AI agents"
 license = {text = "Apache-2.0"}
 classifiers = ["License :: OSI Approved :: Apache Software License"]
