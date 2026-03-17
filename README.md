@@ -6,6 +6,7 @@
 
 > Enterprise-grade, self-hosted AI memory infrastructure layer. Deploy persistent AI memory on-premise or in any cloud with your own LLM and database.
 
+[![PyPI](https://img.shields.io/pypi/v/memwire?color=blue&label=PyPI)](https://pypi.org/project/memwire/)
 ![Self-Hosted](https://img.shields.io/badge/Self--Hosted-Yes-blue)
 ![Customizable](https://img.shields.io/badge/Customizable-Fully-green)
 ![Model-Agnostic](https://img.shields.io/badge/Model--Agnostic-Any%20LLM-orange)
