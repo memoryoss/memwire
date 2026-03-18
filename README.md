@@ -1,7 +1,7 @@
 # MemWire
 
 <p align="center">
-  <img src="docs/images/banner.png" alt="MemWire" width="100%" />
+  <img src="https://raw.githubusercontent.com/memoryoss/memwire/main/docs/images/banner.png" alt="MemWire" width="100%" />
 </p>
 
 > Enterprise-grade, self-hosted AI memory infrastructure layer. Deploy persistent AI memory on-premise or in any cloud with your own LLM and database.
@@ -229,20 +229,20 @@ MemWire is model-agnostic. Memory operations like storage, recall, and search wo
 
 | Provider | Example |
 |---|---|
-| OpenAI | [examples/openai/](examples/openai/) |
-| Azure OpenAI | [examples/azure-openai/](examples/azure-openai/) |
+| OpenAI | [examples/openai/](https://github.com/memoryoss/memwire/tree/main/examples/openai/) |
+| Azure OpenAI | [examples/azure-openai/](https://github.com/memoryoss/memwire/tree/main/examples/azure-openai/) |
 | Anthropic, Gemini, Ollama, or any other | Pass the recalled context into any LLM |
 
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for the full plan.
+See [ROADMAP.md](https://github.com/memoryoss/memwire/blob/main/ROADMAP.md) for the full plan.
 
 
 ## Contributing
 
-PRs and issues are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) and [GOVERNANCE.md](GOVERNANCE.md).
+PRs and issues are welcome. See [CONTRIBUTING.md](https://github.com/memoryoss/memwire/blob/main/CONTRIBUTING.md) and [GOVERNANCE.md](https://github.com/memoryoss/memwire/blob/main/GOVERNANCE.md).
 
 ## License
 
-[Apache License 2.0](LICENSE)
+[Apache License 2.0](https://github.com/memoryoss/memwire/blob/main/LICENSE)
