@@ -17,6 +17,8 @@
 
 MemWire is **an open source & enterprise-ready** AI memory infrastructure layer. MemWire gives your AI applications persistent, auditable memory with structured, updatable facts, **fastest** semantic retrieval across conversations and knowledge using **graph-based memory**.
 
+> Truly open-source! MemWire is a fully research and community-driven project.
+
 - [Fully customizable](https://memwirelabs.ai/configuration) — adapt schemas, memory types, and pipelines to your use case
 - Self-hosted — run entirely on your local machine, on-premise or in your own cloud
 - [Multi-tenant](https://memwirelabs.ai/features/multi-tenancy) — isolate applications, users, and workspaces securely
