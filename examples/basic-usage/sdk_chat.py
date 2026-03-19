@@ -45,11 +45,11 @@ def chat(user_input: str) -> str:
     history.append({"role": "assistant", "content": response})
 
     # store to memory and reinforce
-    memory.add(USER_ID, [
+    memory.add(user_id=USER_ID, messages=[
         {"role": "user", "content": user_input},
         {"role": "assistant", "content": response},
     ])
-    memory.feedback(response, USER_ID)  # pass LLM output to reinforce paths
+    memory.feedback(assistant_response=response, user_id=USER_ID)  # pass LLM output to reinforce paths
 
     return response
 
