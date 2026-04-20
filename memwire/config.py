@@ -100,6 +100,11 @@ class MemWireConfig:
     # Cross-memory edges
     cross_memory_recent_limit: int = 50
 
+    # Ingest defaults (used by ingest() with unstructured)
+    ingest_chunk_max_characters: int = 1500
+    ingest_chunk_overlap: int = 200
+    ingest_combine_text_under_n_chars: int = 200
+
     # Threading
     background_threads: int = 2
 
