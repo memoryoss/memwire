@@ -66,11 +66,17 @@ class MemWire:
             return self._graphs[key]
 
     def _get_user_memories(self, user_id: str, app_id: Optional[str] = None, workspace_id: Optional[str] = None) -> dict[str, MemoryRecord]:
-        """Get or create per-user memory dict."""
+        """Get or load per-user memory dict from database."""
         key = self._graph_key(user_id, app_id, workspace_id)
         with self._lock:
             if key not in self._memories:
-                self._memories[key] = {}
+                records = self.db.load_memories(
+                    user_id=user_id,
+                    org_id=self.config.org_id,
+                    workspace_id=workspace_id,
+                    app_id=app_id,
+                )
+                self._memories[key] = {r.memory_id: r for r in records}
             return self._memories[key]
 
     def _get_user_memory_nodes(self, user_id: str, app_id: Optional[str] = None, workspace_id: Optional[str] = None) -> dict[str, list[str]]:
@@ -328,6 +334,72 @@ class MemWire:
             )
 
         return kb_id
+
+    def ingest(
+        self,
+        file_path: str,
+        *,
+        name: Optional[str] = None,
+        user_id: str,
+        agent_id: Optional[str] = None,
+        app_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
+        chunk_max_characters: Optional[int] = None,
+        chunk_overlap: Optional[int] = None,
+    ) -> str:
+        """Ingest a document file into a knowledge base.
+
+        Requires: pip install "memwire[ingest]"
+        Supports PDF, DOCX, HTML, TXT, MD, and other formats via unstructured.
+        Returns kb_id.
+        """
+        try:
+            from unstructured.partition.auto import partition
+            from unstructured.chunking.title import chunk_by_title
+        except ImportError:
+            raise ImportError(
+                'Document ingestion requires the unstructured library. '
+                'Install it with: pip install "memwire[ingest]"'
+            )
+
+        from pathlib import Path
+
+        path = Path(file_path)
+        if not path.is_file():
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        if name is None:
+            name = path.name
+
+        elements = partition(filename=str(path))
+
+        chunked = chunk_by_title(
+            elements,
+            max_characters=chunk_max_characters or self.config.ingest_chunk_max_characters,
+            overlap=chunk_overlap or self.config.ingest_chunk_overlap,
+            combine_text_under_n_chars=self.config.ingest_combine_text_under_n_chars,
+        )
+
+        chunks = []
+        for el in chunked:
+            text = str(el).strip()
+            if not text:
+                continue
+            meta = {"source": str(path), "element_type": el.category}
+            if hasattr(el, "metadata") and hasattr(el.metadata, "to_dict"):
+                el_meta = el.metadata.to_dict()
+                el_meta.pop("orig_elements", None)
+                meta.update(el_meta)
+            chunks.append({"content": text, "metadata": meta})
+
+        if not chunks:
+            raise ValueError(f"No content extracted from {file_path}")
+
+        return self.add_knowledge(
+            name, chunks,
+            user_id=user_id, agent_id=agent_id,
+            app_id=app_id, workspace_id=workspace_id,
+        )
 
     def search_knowledge(
         self,

@@ -148,6 +148,36 @@ class MemWireClient:
         })
         return [KnowledgeChunk(**c) for c in data]
 
+    def ingest(
+        self,
+        file_path: str,
+        user_id: str,
+        *,
+        name: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        app_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
+        chunk_max_characters: Optional[int] = None,
+        chunk_overlap: Optional[int] = None,
+    ) -> dict:
+        """Upload and ingest a document file. Returns {kb_id, name, chunks}."""
+        with open(file_path, "rb") as f:
+            files = {"file": (file_path.split("/")[-1], f)}
+            data = {"user_id": user_id}
+            if name:
+                data["name"] = name
+            if agent_id:
+                data["agent_id"] = agent_id
+            if app_id:
+                data["app_id"] = app_id
+            if workspace_id:
+                data["workspace_id"] = workspace_id
+            if chunk_max_characters is not None:
+                data["chunk_max_characters"] = str(chunk_max_characters)
+            if chunk_overlap is not None:
+                data["chunk_overlap"] = str(chunk_overlap)
+            return self._request("POST", "/v1/knowledge/ingest", files=files, data=data)
+
     def delete_knowledge(self, kb_id: str, user_id: str) -> None:
         self._request("DELETE", f"/v1/knowledge/{kb_id}", params={"user_id": user_id})
 

@@ -126,6 +126,12 @@ class KnowledgeResponse(BaseModel):
     kb_id: str
 
 
+class IngestResponse(BaseModel):
+    kb_id: str
+    name: str
+    chunks: int
+
+
 class StatsResponse(BaseModel):
     memories: int
     nodes: int
