@@ -12,6 +12,7 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
     """Validates X-API-Key header against configured keys."""
 
     EXEMPT_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
+    EXEMPT_PREFIXES = ("/studio",)
 
     def __init__(self, app, api_keys: list[str] | None = None):
         super().__init__(app)
@@ -23,11 +24,18 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         return [k.strip() for k in raw.split(",") if k.strip()]
 
     def _check_key(self, key: str) -> bool:
-        # constant-time comparison to prevent timing attacks
         return any(hmac.compare_digest(key, valid) for valid in self.api_keys)
 
+    def _is_exempt(self, path: str) -> bool:
+        if path in self.EXEMPT_PATHS:
+            return True
+        for prefix in self.EXEMPT_PREFIXES:
+            if path == prefix or path.startswith(prefix + "/"):
+                return True
+        return False
+
     async def dispatch(self, request: Request, call_next):
-        if request.url.path in self.EXEMPT_PATHS:
+        if self._is_exempt(request.url.path):
             return await call_next(request)
 
         if not self.api_keys:

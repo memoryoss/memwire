@@ -116,15 +116,40 @@ memory = MemWire(config=config)
 
 ---
 
-### REST API
+### Docker (REST API + Studio)
 
-The `api/` folder provides a self-hosted REST API backed by FastAPI and Qdrant.
-
-#### Start the server
+The repo ships with a multi-stage `Dockerfile` and `docker-compose.yml` at the
+root that build the FastAPI server, bundle the Studio admin UI, and bring up
+Qdrant in one command.
 
 ```bash
-cd api
-docker compose up --build   # Qdrant + MemWire API on :8000
+cp .env.example .env
+# set MEMWIRE_API_KEYS=your-secret-key (comma-separated for multiple keys)
+docker compose up --build
+```
+
+This exposes:
+
+- `http://localhost:8000` — REST API
+- `http://localhost:8000/studio/` — Memwire Studio (paste the API key once on first load)
+- `http://localhost:8000/health` — health probe (auth-exempt)
+- `http://localhost:8000/docs` — OpenAPI / Swagger UI
+
+The `MEMWIRE_API_KEYS` env var is the comma-separated list of accepted
+`X-API-Key` values. If left empty, auth is disabled (dev only). Studio stores
+the key you paste in `localStorage` and attaches it as `X-API-Key` on every
+request.
+
+Persistent volumes:
+
+- `qdrant_storage` — vectors
+- `memwire_data` — SQLite metadata at `/data/memwire.db`
+
+To skip the heavy `unstructured[all-docs]` ingest extras (smaller image, faster
+build, no document upload), build with:
+
+```bash
+docker compose build --build-arg INSTALL_INGEST=false
 ```
 
 ---

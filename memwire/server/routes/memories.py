@@ -1,9 +1,11 @@
-"""Memory endpoints: add, recall, search, feedback."""
+"""Memory endpoints: add, list, recall, search, feedback."""
 
-from fastapi import APIRouter, Request
+from typing import Optional
+
+from fastapi import APIRouter, Query, Request
 
 from ..schemas import (
-    AddMemoryRequest, MemoryResponse,
+    AddMemoryRequest, MemoryResponse, MemoryListItem, MemoryListResponse,
     RecallRequest, RecallResponse, PathResponse,
     SearchRequest, SearchHitResponse,
     FeedbackRequest, FeedbackResponse,
@@ -26,6 +28,24 @@ def _memory_to_response(record) -> MemoryResponse:
     )
 
 
+def _memory_to_list_item(record) -> MemoryListItem:
+    return MemoryListItem(
+        memory_id=record.memory_id,
+        user_id=record.user_id,
+        content=record.content,
+        role=record.role,
+        category=record.category,
+        strength=record.strength,
+        timestamp=record.timestamp,
+        node_ids=record.node_ids,
+        agent_id=record.agent_id,
+        workspace_id=record.workspace_id,
+        app_id=record.app_id,
+        org_id=record.org_id,
+        access_count=record.access_count,
+    )
+
+
 def _path_to_response(path) -> PathResponse:
     return PathResponse(
         tokens=[n.token for n in path.nodes],
@@ -45,6 +65,43 @@ def add_memories(body: AddMemoryRequest, request: Request):
         workspace_id=body.workspace_id,
     )
     return [_memory_to_response(r) for r in records]
+
+
+@router.get("", response_model=MemoryListResponse)
+def list_memories(
+    request: Request,
+    user_id: Optional[str] = Query(None),
+    agent_id: Optional[str] = Query(None),
+    workspace_id: Optional[str] = Query(None),
+    app_id: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
+    role: Optional[str] = Query(None),
+    since: Optional[float] = Query(None, description="Unix timestamp (seconds)"),
+    until: Optional[float] = Query(None, description="Unix timestamp (seconds)"),
+    search: Optional[str] = Query(None, description="Substring match on content"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    memory = request.app.state.memory
+    records, total = memory.db.list_memories(
+        user_id=user_id,
+        agent_id=agent_id,
+        workspace_id=workspace_id,
+        app_id=app_id,
+        category=category,
+        role=role,
+        since=since,
+        until=until,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
+    return MemoryListResponse(
+        items=[_memory_to_list_item(r) for r in records],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.post("/recall", response_model=RecallResponse)
