@@ -14,7 +14,7 @@ Usage:
     memory.feedback(assistant_response="Based on your preference for organic, I recommend Vendor A", user_id="buyer_1")
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.2"
 
 from .api.client import MemWire
 from .config import MemWireConfig

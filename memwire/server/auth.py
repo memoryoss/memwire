@@ -2,10 +2,13 @@
 
 import hmac
 import json
+import logging
 import os
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
+
+logger = logging.getLogger(__name__)
 
 
 class APIKeyMiddleware(BaseHTTPMiddleware):
@@ -17,6 +20,16 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, api_keys: list[str] | None = None):
         super().__init__(app)
         self.api_keys = list(api_keys or self._load_keys())
+        if not self.api_keys:
+            logger.warning(
+                "================================================================\n"
+                "  MEMWIRE_API_KEYS is empty — API authentication is DISABLED.\n"
+                "  Anyone with network access to this server can read or write\n"
+                "  every memory and knowledge base. Safe for localhost only.\n"
+                "  Set MEMWIRE_API_KEYS=<secret> in your .env before exposing\n"
+                "  this beyond 127.0.0.1.\n"
+                "================================================================"
+            )
 
     @staticmethod
     def _load_keys() -> list[str]:

@@ -380,9 +380,11 @@ def test_auth_info(client):
     assert data["current_key_prefix"] == "abcdefgh"
 
 
-def test_chat_503_without_provider(client, monkeypatch):
+def test_chat_503_without_provider(monkeypatch, tmp_path):
     """When no LLM provider is configured, /v1/chat returns 503."""
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    # Isolate from any saved llm_config.json in the host's config dir
+    monkeypatch.setenv("MEMWIRE_CONFIG_DIR", str(tmp_path))
     from memwire.server.app import create_app
     app = create_app()
     with TestClient(app) as c:
@@ -443,7 +445,7 @@ def test_chat_providers(client):
     assert "configured" in data["providers"]["openai"]
 
 
-def test_llm_config_unconfigured(client, monkeypatch, tmp_path):
+def test_llm_config_unconfigured(monkeypatch, tmp_path):
     """GET /v1/llm/config returns configured=false when no env or saved config."""
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setenv("MEMWIRE_CONFIG_DIR", str(tmp_path))

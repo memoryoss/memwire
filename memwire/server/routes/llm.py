@@ -10,6 +10,8 @@ When the backend was started with ``OPENAI_API_KEY`` set, ``env_locked`` is
 true and POST/DELETE return 423.
 """
 
+import asyncio
+import logging
 import time
 from typing import Optional
 
@@ -24,7 +26,22 @@ from ..schemas import (
     LLMTestResponse,
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/llm", tags=["llm"])
+
+# Grace period before closing a swapped-out LLMClient. Must outlast the
+# longest plausible /v1/chat completion (LLM call) so any in-flight chat
+# that captured the old client can finish using it.
+_OLD_CLIENT_CLOSE_DELAY_S = 60.0
+
+
+async def _close_after_delay(client: LLMClient, delay: float) -> None:
+    """Close a swapped-out LLMClient after a grace period."""
+    try:
+        await asyncio.sleep(delay)
+        await client.close()
+    except Exception as exc:  # noqa: BLE001 — log and swallow, this is cleanup
+        logger.warning("Deferred LLMClient close failed: %s", exc)
 
 
 def _mask(key: str) -> tuple[Optional[str], Optional[str]]:
@@ -98,10 +115,12 @@ async def save_config(body: LLMConfigItem, request: Request):
         "available_models": new_config.available_models,
     })
 
+    # Swap first so subsequent requests use the new client; defer the old
+    # client's close so any in-flight /v1/chat that captured it can finish.
     old = getattr(request.app.state, "llm", None)
-    if old is not None:
-        await old.close()
     request.app.state.llm = LLMClient(new_config)
+    if old is not None:
+        asyncio.create_task(_close_after_delay(old, _OLD_CLIENT_CLOSE_DELAY_S))
     return _state(request.app.state.llm, locked=False)
 
 
@@ -114,9 +133,9 @@ async def clear_config(request: Request):
         )
     request.app.state.llm_store.clear()
     old = getattr(request.app.state, "llm", None)
-    if old is not None:
-        await old.close()
     request.app.state.llm = None
+    if old is not None:
+        asyncio.create_task(_close_after_delay(old, _OLD_CLIENT_CLOSE_DELAY_S))
     return _state(None, locked=False)
 
 
