@@ -4,6 +4,7 @@ import json
 import time
 from typing import Optional
 
+from sqlalchemy import Integer, desc, distinct, func
 from sqlalchemy.orm import Session
 
 from ..config import MemWireConfig
@@ -88,6 +89,57 @@ class DatabaseManager:
             workspace_id=m.workspace_id,
             app_id=m.app_id,
         )
+
+    def list_memories(
+        self,
+        user_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        org_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
+        app_id: Optional[str] = None,
+        category: Optional[str] = None,
+        role: Optional[str] = None,
+        since: Optional[float] = None,
+        until: Optional[float] = None,
+        search: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[MemoryRecord], int]:
+        """Paginated list of memories with optional filters.
+
+        All filter args default to None (= no filter on that field). Returns
+        (records, total_matching_count) ordered by timestamp DESC.
+        """
+        with self._session() as session:
+            query = session.query(MemoryModel)
+            if user_id is not None:
+                query = query.filter_by(user_id=user_id)
+            if agent_id is not None:
+                query = query.filter_by(agent_id=agent_id)
+            if org_id is not None:
+                query = query.filter_by(org_id=org_id)
+            if workspace_id is not None:
+                query = query.filter_by(workspace_id=workspace_id)
+            if app_id is not None:
+                query = query.filter_by(app_id=app_id)
+            if category is not None:
+                query = query.filter_by(category=category)
+            if role is not None:
+                query = query.filter_by(role=role)
+            if since is not None:
+                query = query.filter(MemoryModel.timestamp >= since)
+            if until is not None:
+                query = query.filter(MemoryModel.timestamp <= until)
+            if search:
+                query = query.filter(MemoryModel.content.ilike(f"%{search}%"))
+            total = query.count()
+            rows = (
+                query.order_by(desc(MemoryModel.timestamp))
+                .limit(limit)
+                .offset(offset)
+                .all()
+            )
+            return [self._model_to_record(r) for r in rows], total
 
     def update_memory_strength(self, memory_id: str, strength: float) -> None:
         with self._session() as session:
@@ -176,6 +228,31 @@ class DatabaseManager:
                     weight=r.weight,
                     displacement_sim=r.displacement_sim,
                     user_id=getattr(r, 'user_id', ''),
+                )
+                for r in rows
+            ]
+
+    def load_edges_for_nodes(self, node_ids: set[str]) -> list[GraphEdge]:
+        """Load only edges whose both endpoints are in *node_ids* (DB-level filter)."""
+        if not node_ids:
+            return []
+        node_list = list(node_ids)
+        with self._session() as session:
+            rows = (
+                session.query(EdgeModel)
+                .filter(
+                    EdgeModel.source_id.in_(node_list),
+                    EdgeModel.target_id.in_(node_list),
+                )
+                .all()
+            )
+            return [
+                GraphEdge(
+                    source_id=r.source_id,
+                    target_id=r.target_id,
+                    weight=r.weight,
+                    displacement_sim=r.displacement_sim,
+                    user_id=r.user_id,
                 )
                 for r in rows
             ]
@@ -281,6 +358,202 @@ class DatabaseManager:
                     "chunk_count": r.chunk_count,
                 }
                 for r in rows
+            ]
+
+    def list_knowledge_bases(
+        self,
+        user_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
+        app_id: Optional[str] = None,
+        search: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[dict], int]:
+        """Paginated list of knowledge bases with optional filters."""
+        with self._session() as session:
+            query = session.query(KnowledgeBaseModel)
+            if user_id is not None:
+                query = query.filter_by(user_id=user_id)
+            if agent_id is not None:
+                query = query.filter_by(agent_id=agent_id)
+            if workspace_id is not None:
+                query = query.filter_by(workspace_id=workspace_id)
+            if app_id is not None:
+                query = query.filter_by(app_id=app_id)
+            if search:
+                query = query.filter(KnowledgeBaseModel.name.ilike(f"%{search}%"))
+            total = query.count()
+            rows = (
+                query.order_by(desc(KnowledgeBaseModel.created_at))
+                .limit(limit)
+                .offset(offset)
+                .all()
+            )
+            items = [
+                {
+                    "kb_id": r.kb_id,
+                    "user_id": r.user_id,
+                    "agent_id": r.agent_id,
+                    "name": r.name,
+                    "description": r.description or "",
+                    "created_at": r.created_at,
+                    "chunk_count": r.chunk_count or 0,
+                    "workspace_id": r.workspace_id,
+                    "app_id": r.app_id,
+                }
+                for r in rows
+            ]
+            return items, total
+
+    def dashboard_stats(self, org_id: Optional[str] = None) -> dict:
+        """Aggregate stats across all users/agents in an org."""
+        with self._session() as session:
+            m_query = session.query(MemoryModel)
+            if org_id is not None:
+                m_query = m_query.filter_by(org_id=org_id)
+
+            total_memories = m_query.count()
+            distinct_users = m_query.with_entities(
+                func.count(distinct(MemoryModel.user_id))
+            ).scalar() or 0
+
+            cat_rows = (
+                m_query.with_entities(MemoryModel.category, func.count())
+                .group_by(MemoryModel.category)
+                .all()
+            )
+            by_category = {(c or "uncategorized"): n for c, n in cat_rows}
+
+            role_rows = (
+                m_query.with_entities(MemoryModel.role, func.count())
+                .group_by(MemoryModel.role)
+                .all()
+            )
+            by_role = {r: n for r, n in role_rows}
+
+            # GraphNodeModel and EdgeModel have no org_id column — these are
+            # always global counts regardless of org_id filter.
+            total_nodes = session.query(GraphNodeModel).count()
+            total_edges = session.query(EdgeModel).count()
+
+            # KnowledgeBaseModel has no org_id column; scope approximately by
+            # matching users that appear in the org's memories when org_id is set.
+            kb_query = session.query(KnowledgeBaseModel)
+            if org_id is not None:
+                org_user_ids = (
+                    session.query(MemoryModel.user_id)
+                    .filter(MemoryModel.org_id == org_id)
+                    .distinct()
+                )
+                kb_query = kb_query.filter(
+                    KnowledgeBaseModel.user_id.in_(org_user_ids)
+                )
+            total_kbs = kb_query.count()
+
+            a_query = session.query(AnchorModel)
+            if org_id is not None:
+                a_query = a_query.filter_by(org_id=org_id)
+            total_anchors = a_query.count()
+
+            now = time.time()
+            days = 14
+            ts_min = now - days * 86400
+            day_bucket = func.cast(
+                func.floor((MemoryModel.timestamp - ts_min) / 86400), Integer
+            ).label("day_idx")
+            ts_rows = (
+                m_query.filter(MemoryModel.timestamp >= ts_min)
+                .with_entities(day_bucket, func.count().label("cnt"))
+                .group_by("day_idx")
+                .all()
+            )
+            buckets = {}
+            for row in ts_rows:
+                idx = int(row.day_idx)
+                if 0 <= idx < days:
+                    buckets[idx] = row.cnt
+            timeseries = [
+                {"ts": int(ts_min + i * 86400), "count": buckets.get(i, 0)}
+                for i in range(days)
+            ]
+
+            return {
+                "total_memories": total_memories,
+                "distinct_users": distinct_users,
+                "total_nodes": total_nodes,
+                "total_edges": total_edges,
+                "total_knowledge_bases": total_kbs,
+                "total_anchors": total_anchors,
+                "by_category": by_category,
+                "by_role": by_role,
+                "timeseries": timeseries,
+            }
+
+    def recent_activity(self, limit: int = 50, org_id: Optional[str] = None) -> list[dict]:
+        """Recent memory adds + KB ingests, merged and sorted by timestamp DESC."""
+        with self._session() as session:
+            m_query = session.query(MemoryModel)
+            if org_id is not None:
+                m_query = m_query.filter_by(org_id=org_id)
+            memories = (
+                m_query.order_by(desc(MemoryModel.timestamp)).limit(limit).all()
+            )
+            kb_query = session.query(KnowledgeBaseModel)
+            kbs = (
+                kb_query.order_by(desc(KnowledgeBaseModel.created_at))
+                .limit(limit)
+                .all()
+            )
+            items: list[dict] = []
+            for m in memories:
+                excerpt = (m.content[:80] + "...") if m.content and len(m.content) > 80 else (m.content or "")
+                items.append({
+                    "type": "memory_added",
+                    "timestamp": m.timestamp,
+                    "user_id": m.user_id,
+                    "summary": excerpt,
+                    "related_id": m.memory_id,
+                    "role": m.role,
+                    "category": m.category,
+                })
+            for kb in kbs:
+                items.append({
+                    "type": "knowledge_ingested",
+                    "timestamp": kb.created_at,
+                    "user_id": kb.user_id,
+                    "summary": f"Ingested '{kb.name}' ({kb.chunk_count or 0} chunks)",
+                    "related_id": kb.kb_id,
+                    "role": None,
+                    "category": None,
+                })
+            items.sort(key=lambda x: x["timestamp"], reverse=True)
+            return items[:limit]
+
+    def list_workspaces(self, org_id: Optional[str] = None) -> list[dict]:
+        """List distinct workspace_ids with aggregate stats from memories."""
+        with self._session() as session:
+            query = session.query(MemoryModel)
+            if org_id is not None:
+                query = query.filter_by(org_id=org_id)
+            rows = (
+                query.with_entities(
+                    MemoryModel.workspace_id,
+                    func.count(MemoryModel.memory_id).label("memory_count"),
+                    func.count(distinct(MemoryModel.user_id)).label("user_count"),
+                    func.max(MemoryModel.timestamp).label("last_active"),
+                )
+                .group_by(MemoryModel.workspace_id)
+                .all()
+            )
+            return [
+                {
+                    "workspace_id": ws,
+                    "memory_count": int(mc),
+                    "user_count": int(uc),
+                    "last_active": float(la) if la is not None else 0.0,
+                }
+                for ws, mc, uc, la in rows
             ]
 
     def delete_knowledge_base(self, kb_id: str) -> None:

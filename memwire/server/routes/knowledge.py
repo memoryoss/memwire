@@ -1,15 +1,16 @@
-"""Knowledge base endpoints: add, search, delete, ingest."""
+"""Knowledge base endpoints: add, list, search, delete, ingest."""
 
 import os
 import shutil
 import tempfile
+from typing import Optional
 
 from fastapi import APIRouter, Request, HTTPException, Query, UploadFile, File, Form
-from typing import Optional
 
 from ..schemas import (
     AddKnowledgeRequest, KnowledgeResponse,
     SearchKnowledgeRequest, IngestResponse,
+    KnowledgeListItem, KnowledgeListResponse,
 )
 
 router = APIRouter(prefix="/v1/knowledge", tags=["knowledge"])
@@ -27,6 +28,35 @@ def add_knowledge(body: AddKnowledgeRequest, request: Request):
         workspace_id=body.workspace_id,
     )
     return KnowledgeResponse(kb_id=kb_id)
+
+
+@router.get("", response_model=KnowledgeListResponse)
+def list_knowledge(
+    request: Request,
+    user_id: Optional[str] = Query(None),
+    agent_id: Optional[str] = Query(None),
+    workspace_id: Optional[str] = Query(None),
+    app_id: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    memory = request.app.state.memory
+    items, total = memory.db.list_knowledge_bases(
+        user_id=user_id,
+        agent_id=agent_id,
+        workspace_id=workspace_id,
+        app_id=app_id,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
+    return KnowledgeListResponse(
+        items=[KnowledgeListItem(**i) for i in items],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.post("/ingest", response_model=IngestResponse)
@@ -109,7 +139,6 @@ def search_knowledge(body: SearchKnowledgeRequest, request: Request):
 @router.delete("/{kb_id}")
 def delete_knowledge(kb_id: str, user_id: str = Query(...), request: Request = None):
     memory = request.app.state.memory
-    # verify ownership
     kbs = memory.db.load_knowledge_bases(user_id)
     if not any(kb["kb_id"] == kb_id for kb in kbs):
         raise HTTPException(status_code=404, detail="Knowledge base not found for user")

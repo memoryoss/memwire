@@ -116,15 +116,64 @@ memory = MemWire(config=config)
 
 ---
 
-### REST API
+### Docker (REST API + Studio)
 
-The `api/` folder provides a self-hosted REST API backed by FastAPI and Qdrant.
-
-#### Start the server
+The repo ships with a multi-stage `Dockerfile` and `docker-compose.yml` at the
+root that build the FastAPI server, bundle the Studio admin UI, and bring up
+Qdrant in one command.
 
 ```bash
-cd api
-docker compose up --build   # Qdrant + MemWire API on :8000
+cp .env.example .env
+# set MEMWIRE_API_KEYS=your-secret-key (comma-separated for multiple keys)
+docker compose up --build
+```
+
+> **⚠ Security warning** — if `MEMWIRE_API_KEYS` is left empty, the backend
+> runs with **no authentication** and accepts every request. Combined with
+> the default permissive CORS, anyone with network access can read or
+> write all your memories. **Never expose the container beyond `localhost`
+> without setting a key first.** Memwire prints a loud warning at startup
+> when keys are unset; check your container logs.
+
+This exposes:
+
+- `http://localhost:8000` — REST API
+- `http://localhost:8000/studio/` — Memwire Studio (paste the API key once on first load)
+- `http://localhost:8000/health` — health probe (auth-exempt)
+- `http://localhost:8000/docs` — OpenAPI / Swagger UI
+
+The `MEMWIRE_API_KEYS` env var is the comma-separated list of accepted
+`X-API-Key` values. Studio stores the key you paste in `localStorage` and
+attaches it as `X-API-Key` on every request.
+
+#### LLM provider (optional, for the playground chat)
+
+If you don't set `OPENAI_API_KEY` in `.env`, the backend boots fine and
+everything works *except* `POST /v1/chat` (used by Studio's playground),
+which returns 503. You can configure the LLM in two ways:
+
+- **Env-driven** — set `OPENAI_API_KEY`, `OPENAI_BASE_URL`,
+  `OPENAI_DEFAULT_MODEL`, `OPENAI_AVAILABLE_MODELS` in `.env` and restart.
+  Studio's LLM Provider page is read-only in this mode.
+- **UI-driven** — leave `OPENAI_API_KEY` empty, then open Studio →
+  **Setup → LLM Provider**, paste the key, click *Test connection* → *Save*.
+  Saved to `/data/llm_config.json` (mode 0600) and hot-swapped without a
+  container restart.
+
+Memwire is OpenAI-compatible-protocol-only — works with OpenAI, Together,
+Groq, Anthropic via OpenRouter, Ollama (`OPENAI_BASE_URL=http://host.docker.internal:11434/v1`),
+vLLM, LiteLLM, etc.
+
+Persistent volumes:
+
+- `qdrant_storage` — vectors
+- `memwire_data` — SQLite metadata at `/data/memwire.db`
+
+To skip the heavy `unstructured[all-docs]` ingest extras (smaller image, faster
+build, no document upload), build with:
+
+```bash
+docker compose build --build-arg INSTALL_INGEST=false
 ```
 
 ---
