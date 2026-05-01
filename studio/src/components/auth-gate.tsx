@@ -20,8 +20,31 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const [draft, setDraft] = React.useState("")
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  // null = probing, true = auth required, false = auth disabled (gate skipped)
+  const [authRequired, setAuthRequired] = React.useState<boolean | null>(null)
 
-  const open = !hasKey
+  // On mount, probe the server without credentials. If the server reports that
+  // no API keys are configured (auth disabled), skip the gate entirely.
+  React.useEffect(() => {
+    let cancelled = false
+    async function probe() {
+      try {
+        const info = await api.authInfo()
+        if (!cancelled) {
+          // configured=false means the server has no API keys set — gate not needed
+          setAuthRequired(info.configured)
+        }
+      } catch {
+        // 401 (auth enabled) or network error — show gate
+        if (!cancelled) setAuthRequired(true)
+      }
+    }
+    probe()
+    return () => { cancelled = true }
+  }, [])
+
+  // Show gate when auth is required on the server AND no key is stored locally.
+  const open = authRequired === true && !hasKey
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

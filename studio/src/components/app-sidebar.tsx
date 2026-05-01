@@ -19,9 +19,8 @@ import {
 import { navGroups, settingsNav } from "@/lib/nav-data"
 
 const user = {
-  name: "Harshal More",
-  email: "harshal@memwire.dev",
-  avatar: "/avatars/user.jpg",
+  name: "Admin",
+  email: "Local instance",
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {

@@ -69,14 +69,12 @@ def graph(
     node_id_set = {n.node_id for n in all_nodes}
 
     # Many existing edges are persisted with user_id="" because of the
-    # merge_cross_memory_edges path — load all edges and scope by node-set
-    # instead of by edge.user_id.
-    raw_edges = memory.db.load_edges()
+    # merge_cross_memory_edges path — filter in SQL by node-set instead of
+    # by edge.user_id to avoid loading the full edges table.
+    raw_edges = memory.db.load_edges_for_nodes(node_id_set)
     seen: set[tuple[str, str]] = set()
     all_edges = []
     for e in raw_edges:
-        if e.source_id not in node_id_set or e.target_id not in node_id_set:
-            continue
         key = (e.source_id, e.target_id) if e.source_id < e.target_id else (e.target_id, e.source_id)
         if key in seen:
             continue

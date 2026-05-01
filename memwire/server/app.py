@@ -114,10 +114,11 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    cors_origins = os.getenv("MEMWIRE_CORS_ORIGINS", "*").split(",")
+    _cors_raw = os.getenv("MEMWIRE_CORS_ORIGINS", "*")
+    cors_origins = [o for o in (o.strip() for o in _cors_raw.split(",")) if o] or ["*"]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[o.strip() for o in cors_origins],
+        allow_origins=cors_origins,
         allow_methods=["*"],
         allow_headers=["*"],
     )

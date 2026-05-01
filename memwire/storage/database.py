@@ -4,7 +4,7 @@ import json
 import time
 from typing import Optional
 
-from sqlalchemy import desc, distinct, func
+from sqlalchemy import Integer, desc, distinct, func
 from sqlalchemy.orm import Session
 
 from ..config import MemWireConfig
@@ -232,6 +232,31 @@ class DatabaseManager:
                 for r in rows
             ]
 
+    def load_edges_for_nodes(self, node_ids: set[str]) -> list[GraphEdge]:
+        """Load only edges whose both endpoints are in *node_ids* (DB-level filter)."""
+        if not node_ids:
+            return []
+        node_list = list(node_ids)
+        with self._session() as session:
+            rows = (
+                session.query(EdgeModel)
+                .filter(
+                    EdgeModel.source_id.in_(node_list),
+                    EdgeModel.target_id.in_(node_list),
+                )
+                .all()
+            )
+            return [
+                GraphEdge(
+                    source_id=r.source_id,
+                    target_id=r.target_id,
+                    weight=r.weight,
+                    displacement_sim=r.displacement_sim,
+                    user_id=r.user_id,
+                )
+                for r in rows
+            ]
+
     # --- Anchor CRUD ---
 
     def save_anchor(
@@ -407,10 +432,23 @@ class DatabaseManager:
             )
             by_role = {r: n for r, n in role_rows}
 
+            # GraphNodeModel and EdgeModel have no org_id column — these are
+            # always global counts regardless of org_id filter.
             total_nodes = session.query(GraphNodeModel).count()
             total_edges = session.query(EdgeModel).count()
 
+            # KnowledgeBaseModel has no org_id column; scope approximately by
+            # matching users that appear in the org's memories when org_id is set.
             kb_query = session.query(KnowledgeBaseModel)
+            if org_id is not None:
+                org_user_ids = (
+                    session.query(MemoryModel.user_id)
+                    .filter(MemoryModel.org_id == org_id)
+                    .distinct()
+                )
+                kb_query = kb_query.filter(
+                    KnowledgeBaseModel.user_id.in_(org_user_ids)
+                )
             total_kbs = kb_query.count()
 
             a_query = session.query(AnchorModel)
@@ -421,21 +459,22 @@ class DatabaseManager:
             now = time.time()
             days = 14
             ts_min = now - days * 86400
+            day_bucket = func.cast(
+                func.floor((MemoryModel.timestamp - ts_min) / 86400), Integer
+            ).label("day_idx")
             ts_rows = (
                 m_query.filter(MemoryModel.timestamp >= ts_min)
-                .with_entities(MemoryModel.timestamp)
+                .with_entities(day_bucket, func.count().label("cnt"))
+                .group_by("day_idx")
                 .all()
             )
-            buckets: dict[int, int] = {}
-            for (ts,) in ts_rows:
-                day_idx = int((ts - ts_min) // 86400)
-                if 0 <= day_idx < days:
-                    buckets[day_idx] = buckets.get(day_idx, 0) + 1
+            buckets = {}
+            for row in ts_rows:
+                idx = int(row.day_idx)
+                if 0 <= idx < days:
+                    buckets[idx] = row.cnt
             timeseries = [
-                {
-                    "ts": int(ts_min + i * 86400),
-                    "count": buckets.get(i, 0),
-                }
+                {"ts": int(ts_min + i * 86400), "count": buckets.get(i, 0)}
                 for i in range(days)
             ]
 
